@@ -1,18 +1,18 @@
 import requests
-import ConfigPaser
+import configparser
 
-CONFIG_FILE_NAME = r'config'
-TWITTER_CONFIG_SECTION = r'twitter'
-SEARCH_URL_KEY = r'search_url'
+CONFIG_FILE_NAME = "config"
+TWITTER_CONFIG_SECTION = "twitter"
+SEARCH_URL_KEY = "search_url"
 
-twitter_config = ConfigParser.ConfigParser()
-config.readfp(open(CONFIG_FILE_NAME))
-search_url = config.get(TWITTER_CONFIG_SECTION, SEARCH_URL_KEY)
-babylon_search_url = search_url + 'babylon'
+twitter_config = configparser.ConfigParser()
+twitter_config.read(CONFIG_FILE_NAME)
+search_url = twitter_config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
+babylon_search_url = search_url + "babylon"
 
 r = requests.get(babylon_search_url)
 if r.status_code == 200:    
-    print(r.json())    
+    print(r.json())
 else:
     print("Got status:", r.status_code)
     print(r)
