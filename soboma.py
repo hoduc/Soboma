@@ -51,13 +51,12 @@ if __name__ == "__main__":
             lis = soup.find_all("li", class_ = "js-stream-item")
             for li in lis:
                 ts = -1
-                tweet = li.find("p", class_ = "TweetTextSize")                
+                tweet = li.find("p", class_ = "TweetTextSize")
                 if tweet:
-                    tweet = (tweet.get_text())
+                    tweet = tweet.get_text()
                     ts = li.find("span", class_ = "_timestamp js-short-timestamp")
                     if ts:
                         ts = ts["data-time-ms"]
-                        tweet = (tweet, ts)
                 dbgp(("tweet:", tweet))
                 r = ()
                 replies = li.find("div", class_ = "ReplyingToContextBelowAuthor")
@@ -67,7 +66,7 @@ if __name__ == "__main__":
                     r = r + (li.find("a", class_ = "account-group")['href'],)
                     for a in replies.find_all('a'):
                         r = r + (a['href'],)
-                activities.append((tweet, r))
+                activities.append((tweet, ts, r))
             print(activities)
             print(profile_elem)
 
