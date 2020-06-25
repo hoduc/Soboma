@@ -50,10 +50,15 @@ if __name__ == "__main__":
             activities = []
             lis = soup.find_all("li", class_ = "js-stream-item")
             for li in lis:
-                tweet = li.find("p", class_ = "TweetTextSize")
-                dbgp(("tweet:", tweet))
+                ts = -1
+                tweet = li.find("p", class_ = "TweetTextSize")                
                 if tweet:
-                    tweet = tweet.get_text()
+                    tweet = (tweet.get_text())
+                    ts = li.find("span", class_ = "_timestamp js-short-timestamp")
+                    if ts:
+                        ts = ts["data-time-ms"]
+                        tweet = (tweet, ts)
+                dbgp(("tweet:", tweet))
                 r = ()
                 replies = li.find("div", class_ = "ReplyingToContextBelowAuthor")
                 if replies:
