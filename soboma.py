@@ -4,6 +4,8 @@ import datetime
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel
+from PyQt5.QtGui import QPixmap
+from PIL import Image, ImageQt
 
 
 UA = UserAgent()
@@ -30,6 +32,10 @@ def dbg_print(msg, should_print = True):
 
 def dbgp(msg):
     dbg_print(msg, debug_print)
+
+def qpixmap_from_url(url):
+    url_image = Image.open(requests.get(url, stream=True).raw)
+    return QPixmap.fromImage(ImageQt.ImageQt(url_image))
 
 if __name__ == "__main__":
     dtos = {}
@@ -68,9 +74,11 @@ if __name__ == "__main__":
                 if replies:
                     # find author of the replies
                     # TODO: extract user_id to link
-                    r = r + (li.find("a", class_ = "account-group")['href'],)
+                    account_group = li.find("a", class_ = "account-group")
+                    author_img = account_group.find("img", class_ = "avatar")
+                    r = r + ((account_group['href'][1:],author_img['src']),)
                     for a in replies.find_all('a'):
-                        r = r + (a['href'],)
+                        r = r + (a['href'][1:],)
                 if not tweet or ts == -1:
                     continue
                 activities.append((tweet, ts, r))
@@ -93,15 +101,25 @@ if __name__ == "__main__":
             # [(tweet, timestamp, (author, reply1, reply2,...))]
             profile_elem, activities = dtos[twitter_id]
             profile_url, profile_stats, bio, location = profile_elem
-            profile_label = QLabel(profile_url + "\n" + str(location) + "\n" + bio + ",".join(profile_stats))
+            profile_label = QLabel(str(location) + "\n" + bio + ",".join(profile_stats))
+            profile_label.setPixmap(qpixmap_from_url(profile_url))
             layout.addWidget(profile_label)
             for (tweet, ts, replies) in activities:
+                replying_author_qpixmap = None
                 dbgp((tweet, ts, replies))
                 tweet_text = ""
                 if replies:
-                    tweet_text += "@" + replies[0] + " replies to " + ",".join("@" + tid for tid in replies[1:])
+                    replying_author, replying_author_img = replies[0]
+                    tweet_text += "@" + replying_author + " replies to " + ",".join("@" + tid for tid in replies[1:])
+                    replying_author_qpixmap = qpixmap_from_url(replying_author_img)
                 tweet_text += "\n" + tweet + "...at " + datetime.datetime.fromtimestamp(float(ts)/1000).strftime("%Y-%m-%d %H:%M:%S")
-                layout.addWidget(QLabel(tweet_text))
+                if replying_author_qpixmap:
+                    tweet_reply_author_label_img = QLabel()
+                    tweet_reply_author_label_img.setPixmap(replying_author_qpixmap)
+                    layout.addWidget(tweet_reply_author_label_img)
+                tweet_label = QLabel(tweet_text)
+                layout.addWidget(tweet_label)
+
         window.setLayout(layout)
         window.show()
         app.exec_()
