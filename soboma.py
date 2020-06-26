@@ -102,8 +102,10 @@ if __name__ == "__main__":
             profile_elem, activities = dtos[twitter_id]
             profile_url, profile_stats, bio, location = profile_elem
             profile_label = QLabel(str(location) + "\n" + bio + ",".join(profile_stats))
-            profile_label.setPixmap(qpixmap_from_url(profile_url))
+            profile_img_label = QLabel()
+            profile_img_label.setPixmap(qpixmap_from_url(profile_url))
             layout.addWidget(profile_label)
+            layout.addWidget(profile_img_label)
             for (tweet, ts, replies) in activities:
                 replying_author_qpixmap = None
                 dbgp((tweet, ts, replies))
