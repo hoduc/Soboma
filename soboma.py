@@ -8,7 +8,7 @@ from collections import OrderedDict
 from multiprocessing import Pool
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QMainWindow
 from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, QRunnable, QObject, QThreadPool, pyqtSignal
 from PIL import Image
 from PIL.ImageQt import ImageQt
 
@@ -28,6 +28,7 @@ twitter_config.read(CONFIG_FILE_NAME)
 search_url = twitter_config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
 twitter_ids = twitter_config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
 ui = twitter_config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
+
 debug = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_KEY)
 debug_print = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_PRINT_KEY)
 
@@ -42,38 +43,50 @@ def qpixmap_from_url(url):
     url_image = Image.open(requests.get(url, stream=True).raw)
     return QPixmap.fromImage(QImage(ImageQt(url_image)))
 
-class WorkerThread(QThread):
-    done = pyqtSignal(int, bytes)
 
-    def __init__(self, meta_urls):
-        QThread.__init__(self)
-        self.meta_urls = meta_urls
+class RunnableSignal(QObject):
+    done = pyqtSignal(int, QImage)
 
-    def __del__(self):
-        self.wait()
-
-    @staticmethod
-    def download_img(meta_url):
-        index, url = meta_url
-        print("about to download:", (index, url))
-        downloaded_img = Image.open(requests.get(url, stream=True).raw)
-        print("finished:", index, downloaded_img)
-        self.done.emit(index, downloaded_img)
+class DownloadImgRunnable(QRunnable):
+    def __init__(self, index, url):
+        super(DownloadImgRunnable, self).__init__()
+        self.index, self.url = index, url
+        self.runnable_signal = RunnableSignal()
 
     def run(self):
-        print("here?")
-        pool = Pool(5)
-        print("meta:", self.meta_urls)
-        pool.map(self.download_img, self.meta_urls)
-        print("end?")
+        dbgp(("about to run Runnable:", self.index, self.url))
+        downloaded_img = Image.open(requests.get(self.url, stream=True).raw)
 
+        # to avoid gc-ed ?
+        # https://stackoverflow.com/questions/61354609/pyqt5-setpixmap-crashing-when-trying-to-show-image-in-label
+        q_img = QImage(ImageQt(downloaded_img).copy())
+        dbgp(("finished:", self.index, self.url, q_img))
+        self.runnable_signal.done.emit(self.index, q_img)
+
+
+class DownloadImgThreadPool(QObject):
+    def __init__(self, meta_urls, ui_update_delegate):
+        super(DownloadImgThreadPool, self).__init__()
+        self.pool = QThreadPool.globalInstance()
+        self.meta_urls = meta_urls
+        self.ui_update_delegate = ui_update_delegate
+
+    def start(self):
+        dbgp("starting threadpool")
+        for (index, url) in self.meta_urls:
+            download_img_thread = DownloadImgRunnable(index, url)
+            # connect
+            download_img_thread.runnable_signal.done[int, QImage].connect(self.ui_update_delegate)
+            self.pool.start(download_img_thread)
+        self.pool.waitForDone()
 
 
 class MainWindow(QMainWindow):
     main_widget = None
     layout = None
-    def __init__(self, dtos):
+    def __init__(self, app, dtos):
         super(MainWindow, self).__init__()
+        self.app = app # pass app just in case need to do some events
         self.dtos = dtos
         self.img_labels = []
         self.init_ui()
@@ -114,14 +127,12 @@ class MainWindow(QMainWindow):
         self.main_widget.setLayout(self.layout)
         self.setCentralWidget(self.main_widget)
         # start background worker thread
-        self.worker_thread = WorkerThread(img_urls)
-        self.worker_thread.done[int, bytes].connect(self.update_img_label)
-        self.worker_thread.start()
+        self.download_img_thread_pool = DownloadImgThreadPool(img_urls, self.update_img_label)
+        self.download_img_thread_pool.start()
 
-    def update_img_label(self, label_index, img_data):
-        print("updating :", label_index, img_data)
-        self.img_labels[label_index].setPixmap(QImage(ImageQt(img_data)))
-        self.img_lables[label_index].show()
+    def update_img_label(self, label_index, q_img):
+        dbgp(("updating :", label_index, q_img))
+        self.img_labels[label_index].setPixmap(QPixmap.fromImage(q_img))
 
 
 
@@ -182,7 +193,7 @@ if __name__ == "__main__":
 
     if ui:
         app = QApplication([])
-        window = MainWindow(dtos)
+        window = MainWindow(app, dtos)
         window.show()
         sys.exit(app.exec_())
 
