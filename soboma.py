@@ -5,10 +5,9 @@ import sys
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
-from multiprocessing import Pool
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QMainWindow
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QMainWindow
 from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import QThread, QRunnable, QObject, QThreadPool, pyqtSignal
+from PyQt5.QtCore import QRunnable, QObject, QThreadPool, pyqtSignal
 from PIL import Image
 from PIL.ImageQt import ImageQt
 
@@ -94,36 +93,42 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         self.main_widget = QWidget()
         self.layout = QVBoxLayout()
+        self.layout.addStretch(1)
         img_urls = []
         for twitter_id in self.dtos:
             profile_elem, activities = self.dtos[twitter_id]
             profile_url, profile_stats, bio, location = profile_elem
-            profile_label = QLabel(str(location) + "\n" + bio + ",".join(profile_stats))
+            profile_label = QLabel("".join(location.split()) + "\n" + bio + ",".join(profile_stats))
             profile_img_label = QLabel()
             img_urls.append((0,profile_url))
             self.img_labels.append(profile_img_label)
-            #profile_img_label.setPixmap(qpixmap_from_url(profile_url))
             self.layout.addWidget(profile_label)
             self.layout.addWidget(profile_img_label)
             for (tweet, ts, replies) in activities:
-                #replying_author_qpixmap = None
+                post_layout = QHBoxLayout()
                 rep_author_img_url = None
                 dbgp((tweet, ts, replies))
                 tweet_text = ""
                 if replies:
                     replying_author, replying_author_img = replies[0]
-                    tweet_text += "@" + replying_author + " replies to " + ",".join("@" + tid for tid in replies[1:])
+                    tweet_text += "@" + replying_author + " replies to " + ",".join("@" + tid for tid in replies[1:]) + " : "
                     rep_author_img_url = replying_author_img
-                    #replying_author_qpixmap = qpixmap_from_url(replying_author_img)
-                tweet_text += "\n" + tweet + "...at " + datetime.datetime.fromtimestamp(float(ts)/1000).strftime("%Y-%m-%d %H:%M:%S")
-                if rep_author_img_url: #replying_author_qpixmap:
-                    tweet_reply_author_label_img = QLabel()
-                    img_urls.append((len(img_urls), rep_author_img_url))
-                    self.img_labels.append(tweet_reply_author_label_img)
-                    #tweet_reply_author_label_img.setPixmap(replying_author_qpixmap)
-                    self.layout.addWidget(tweet_reply_author_label_img)
+                else: #author
+                    tweet_text += "@" + twitter_id + " : "
+                    rep_author_img_url = profile_url
+                tweet_text += tweet + "\n...at " + datetime.datetime.fromtimestamp(float(ts)/1000).strftime("%Y-%m-%d %H:%M:%S")
+                tweet_reply_author_label_img = QLabel()
+                img_urls.append((len(img_urls), rep_author_img_url))
+                self.img_labels.append(tweet_reply_author_label_img)
+                post_layout.addWidget(tweet_reply_author_label_img)
+                # the tweet
                 tweet_label = QLabel(tweet_text)
-                self.layout.addWidget(tweet_label)
+                tweet_label.setScaledContents(True)
+                tweet_label.setWordWrap(True)
+                post_layout.addWidget(tweet_label)
+                post_layout.addStretch(1)
+                # add to parent layout
+                self.layout.addLayout(post_layout)
         self.main_widget.setLayout(self.layout)
         self.setCentralWidget(self.main_widget)
         # start background worker thread
