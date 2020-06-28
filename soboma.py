@@ -98,6 +98,9 @@ class MainWindow(QMainWindow):
         for twitter_id in self.dtos:
             profile_elem, activities = self.dtos[twitter_id]
             profile_url, profile_stats, bio, location = profile_elem
+            # TODO: These if and default values
+            if not location:
+                location = ""
             profile_label = QLabel("".join(location.split()) + "\n" + bio + ",".join(profile_stats))
             profile_img_label = QLabel()
             img_urls.append((0,profile_url))
@@ -156,6 +159,7 @@ if __name__ == "__main__":
             profile_stats = ["".join(elem.get_text().split()) for elem in profile_li.find_all("span", class_ = "ProfileCardStats-stat")]
             # TODO: is there an elvis operator in python?
             profile_bio = profile_li.find("p", class_ = "ProfileCard-bio")
+            # TODO: These if and default values
             if profile_bio:
                 profile_bio = profile_bio.get_text()
             profile_location = profile_li.find("p", class_ = "ProfileCard-locationAndUrl")
