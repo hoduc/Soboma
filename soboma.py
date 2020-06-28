@@ -108,8 +108,20 @@ class MainWindow(QMainWindow):
             # TODO: These if and default values
             if not location:
                 location = ""
-            location = "" if not location else "".join(location.split()) + "\n"
-            profile_label = QLabel(location + bio + ",".join(profile_stats))
+            else:
+                location = "".join(location.split()) + "\n"
+            if not bio:
+                bio = ""
+            else:
+                bio = "".join(bio.split()) + "\n"
+
+            profile_mapping = ["Tweets", "Following", "Followers"]
+            profile_stats_text = ""
+            for (i, stat) in enumerate(profile_stats):
+                profile_stats_text += "{} {},".format(stat, profile_mapping[i])
+            if profile_stats_text:
+                profile_stats_text = profile_stats_text[:-1] + "\n"
+            profile_label = QLabel(location + bio + profile_stats_text)
             profile_img_label = QLabel()
             img_urls.append((0,profile_url))
             self.img_labels.append(profile_img_label)
@@ -160,9 +172,10 @@ if __name__ == "__main__":
             html_doc = json['items_html']
             soup = BeautifulSoup(html_doc, 'html.parser')
             profile_li = soup.find("li", class_ = "AdaptiveStreamUserGallery")
+            dbgp(profile_li)
             profile_img = profile_li.find("img", class_ = "ProfileCard-avatarImage")["src"]
             #[tweets, followings, followers]
-            profile_stats = ["".join(elem.get_text().split()) for elem in profile_li.find_all("span", class_ = "ProfileCardStats-stat")]
+            profile_stats = ["".join(elem.get_text().split()) for elem in profile_li.find_all("span", class_ = "ProfileCardStats-statValue")]
             # TODO: is there an elvis operator in python?
             profile_bio = profile_li.find("p", class_ = "ProfileCard-bio")
             # TODO: These if and default values
