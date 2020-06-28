@@ -43,17 +43,12 @@ def dbg_print(msg, debug_print_level, should_print = True):
 
 def dbgp_helper(msg, debug_log_level):
     dbg_print(msg, debug_print_level, debug_print and  debug_print_level == debug_log_level)
-        
+
 def dbgp(msg):
     dbgp_helper(msg, DEBUG_PRINT_LEVEL_DEBUG)
 
 def dbgpi(msg):
     dbgp_helper(msg,  DEBUG_PRINT_LEVEL_INFO)
-
-def qpixmap_from_url(url):
-    url_image = Image.open(requests.get(url, stream=True).raw)
-    return QPixmap.fromImage(QImage(ImageQt(url_image)))
-
 
 class RunnableSignal(QObject):
     done = pyqtSignal(int, QImage)
@@ -113,7 +108,8 @@ class MainWindow(QMainWindow):
             # TODO: These if and default values
             if not location:
                 location = ""
-            profile_label = QLabel("".join(location.split()) + "\n" + bio + ",".join(profile_stats))
+            location = "" if not location else "".join(location.split()) + "\n"
+            profile_label = QLabel(location + bio + ",".join(profile_stats))
             profile_img_label = QLabel()
             img_urls.append((0,profile_url))
             self.img_labels.append(profile_img_label)
@@ -123,19 +119,17 @@ class MainWindow(QMainWindow):
                 post_layout = QHBoxLayout()
                 rep_author_img_url = None
                 dbgpi((tweet, ts, replies))
-                tweet_text = ""
-                if replies:
-                    replying_author, replying_author_img = replies[0]
-                    tweet_text += "@" + replying_author + " replies to " + ",".join("@" + tid for tid in replies[1:]) + " : "
-                    rep_author_img_url = replying_author_img
-                else: #author
-                    tweet_text += "@" + twitter_id + " : "
-                    rep_author_img_url = profile_url
+                author, author_img_url = replies[0] # always has sth
+                tweet_text = "@" + author
+                if len(replies) > 1: # real replies
+                    tweet_text += " replies to " + ",".join("@" + tid for tid in replies[1:]) + " : "
+                else: # author post
+                    tweet_text += " : "
                 tweet_text += tweet + "\n...at " + datetime.datetime.fromtimestamp(float(ts)/1000).strftime("%Y-%m-%d %H:%M:%S")
-                tweet_reply_author_label_img = QLabel()
-                img_urls.append((len(img_urls), rep_author_img_url))
-                self.img_labels.append(tweet_reply_author_label_img)
-                post_layout.addWidget(tweet_reply_author_label_img)
+                tweet_author_label_img = QLabel()
+                img_urls.append((len(img_urls), author_img_url))
+                self.img_labels.append(tweet_author_label_img)
+                post_layout.addWidget(tweet_author_label_img)
                 # the tweet
                 tweet_label = QLabel(tweet_text)
                 tweet_label.setScaledContents(True)
@@ -181,6 +175,7 @@ if __name__ == "__main__":
             activities = []
             lis = soup.find_all("li", class_ = "js-stream-item")
             for li in lis:
+                dbgp(li)
                 ts = -1
                 tweet = li.find("p", class_ = "TweetTextSize")
                 if tweet:
@@ -188,19 +183,17 @@ if __name__ == "__main__":
                     ts = li.find("span", class_ = "_timestamp")
                     if ts:
                         ts = ts["data-time-ms"]
-                dbgp(("tweet:", tweet))
-                r = ()
-                replies = li.find("div", class_ = "ReplyingToContextBelowAuthor")
-                if replies:
-                    # find author of the replies
-                    # TODO: extract user_id to link
-                    account_group = li.find("a", class_ = "account-group")
-                    author_img = account_group.find("img", class_ = "avatar")
-                    r = r + ((account_group['href'][1:],author_img['src']),)
-                    for a in replies.find_all('a'):
-                        r = r + (a['href'][1:],)
                 if not tweet or ts == -1:
                     continue
+                dbgp(("tweet:", tweet))
+                r = ()
+                account_group = li.find("a", class_ = "account-group")
+                author_img = account_group.find("img", class_ = "avatar")
+                r = r + ((account_group['href'][1:],author_img['src']),)
+                replies = li.find("div", class_ = "ReplyingToContextBelowAuthor")
+                if replies:
+                    for a in replies.find_all('a'):
+                        r = r + (a['href'][1:],)
                 activities.append((tweet, ts, r))
             dbgp(activities)
             dbgp(profile_elem)
