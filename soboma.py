@@ -21,6 +21,11 @@ TWITTER_IDS_KEY = "twitter_ids"
 UI_KEY = "ui"
 DEBUG_KEY = "debug"
 DEBUG_PRINT_KEY = "debug_print"
+DEBUG_PRINT_LEVEL_KEY = "debug_print_level"
+DEBUG_PRINT_LEVEL_INFO = "INFO"
+DEBUG_PRINT_LEVEL_DEBUG = "DEBUG"
+DEBUG_PRINT_LEVEL_ERROR = "ERROR"
+DEBUG_PRINT_LEVEL_WARN = "WARN"
 
 twitter_config = configparser.ConfigParser()
 twitter_config.read(CONFIG_FILE_NAME)
@@ -30,13 +35,20 @@ ui = twitter_config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
 
 debug = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_KEY)
 debug_print = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_PRINT_KEY)
+debug_print_level = twitter_config[TWITTER_CONFIG_SECTION][DEBUG_PRINT_LEVEL_KEY]
 
-def dbg_print(msg, should_print = True):
+def dbg_print(msg, debug_print_level, should_print = True):
     if should_print:
-        print(msg)
+        print("{} {}".format("[" + debug_print_level + "]", msg))
 
+def dbgp_helper(msg, debug_log_level):
+    dbg_print(msg, debug_print_level, debug_print and  debug_print_level == debug_log_level)
+        
 def dbgp(msg):
-    dbg_print(msg, debug_print)
+    dbgp_helper(msg, DEBUG_PRINT_LEVEL_DEBUG)
+
+def dbgpi(msg):
+    dbgp_helper(msg,  DEBUG_PRINT_LEVEL_INFO)
 
 def qpixmap_from_url(url):
     url_image = Image.open(requests.get(url, stream=True).raw)
@@ -110,7 +122,7 @@ class MainWindow(QMainWindow):
             for (tweet, ts, replies) in activities:
                 post_layout = QHBoxLayout()
                 rep_author_img_url = None
-                dbgp((tweet, ts, replies))
+                dbgpi((tweet, ts, replies))
                 tweet_text = ""
                 if replies:
                     replying_author, replying_author_img = replies[0]
