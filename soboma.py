@@ -5,9 +5,9 @@ import sys
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QMainWindow
+from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, QMainWindow
 from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import QRunnable, QObject, QThreadPool, pyqtSignal
+from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, pyqtSignal
 from PIL import Image
 from PIL.ImageQt import ImageQt
 
@@ -98,6 +98,7 @@ class MainWindow(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
+        self.scroll_area = QScrollArea()
         self.main_widget = QWidget()
         self.layout = QVBoxLayout()
         self.layout.addStretch(1)
@@ -151,7 +152,12 @@ class MainWindow(QMainWindow):
                 # add to parent layout
                 self.layout.addLayout(post_layout)
         self.main_widget.setLayout(self.layout)
-        self.setCentralWidget(self.main_widget)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setWidget(self.main_widget)
+        self.setCentralWidget(self.scroll_area)
+        self.setWindowTitle("Soboma")
         # start background worker thread
         self.download_img_thread_pool = DownloadImgThreadPool(img_urls, self.update_img_label)
         self.download_img_thread_pool.start()
