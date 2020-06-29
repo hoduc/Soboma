@@ -21,6 +21,7 @@ TWITTER_IDS_KEY = "twitter_ids"
 UI_KEY = "ui"
 DEBUG_KEY = "debug"
 DEBUG_PRINT_KEY = "debug_print"
+DEBUG_HTML_KEY = "debug_html"
 DEBUG_PRINT_LEVEL_KEY = "debug_print_level"
 DEBUG_PRINT_LEVEL_INFO = "INFO"
 DEBUG_PRINT_LEVEL_DEBUG = "DEBUG"
@@ -36,6 +37,7 @@ ui = twitter_config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
 debug = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_KEY)
 debug_print = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_PRINT_KEY)
 debug_print_level = twitter_config[TWITTER_CONFIG_SECTION][DEBUG_PRINT_LEVEL_KEY]
+debug_html = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_HTML_KEY)
 
 def dbg_print(msg, debug_print_level, should_print = True):
     if should_print:
@@ -113,8 +115,6 @@ class MainWindow(QMainWindow):
                 location = "".join(location.split()) + "\n"
             if not bio:
                 bio = ""
-            else:
-                bio = "".join(bio.split()) + "\n"
 
             profile_mapping = ["Tweets", "Following", "Followers"]
             profile_stats_text = ""
@@ -168,57 +168,69 @@ class MainWindow(QMainWindow):
 
 
 
+def parse_html(html_doc, dtos):
+    soup = BeautifulSoup(html_doc, 'html.parser')
+    profile_li = soup.find("li", class_ = "AdaptiveStreamUserGallery")
+    dbgpi(profile_li)
+    profile_img = profile_li.find("img", class_ = "ProfileCard-avatarImage")["src"]
+    #[tweets, followings, followers]
+    profile_stats = ["".join(elem.get_text().split()) for elem in profile_li.find_all("span", class_ = "ProfileCardStats-statValue")]
+    # TODO: is there an elvis operator in python?
+    profile_bio = profile_li.find("p", class_ = "ProfileCard-bio")
+    # TODO: These if and default values
+    if profile_bio:
+        profile_bio = profile_bio.get_text()
+    profile_location = profile_li.find("p", class_ = "ProfileCard-locationAndUrl")
+    if profile_location:
+        profile_location = profile_location.get_text()
+    profile_elem = (profile_img, profile_stats, profile_bio, profile_location)
+    activities = []
+    lis = soup.find_all("li", class_ = "js-stream-item")
+    for li in lis:
+        dbgp(li)
+        ts = -1
+        tweet = li.find("p", class_ = "TweetTextSize")
+        if tweet:
+            tweet = tweet.get_text()
+            ts = li.find("span", class_ = "_timestamp")
+            if ts:
+                ts = ts["data-time-ms"]
+        if not tweet or ts == -1:
+            continue
+        dbgp(("tweet:", tweet))
+        r = ()
+        account_group = li.find("a", class_ = "account-group")
+        author_img = account_group.find("img", class_ = "avatar")
+        r = r + ((account_group['href'][1:],author_img['src']),)
+        replies = li.find("div", class_ = "ReplyingToContextBelowAuthor")
+        if replies:
+            for a in replies.find_all('a'):
+                r = r + (a['href'][1:],)
+        activities.append((tweet, ts, r))
+        dbgp(activities)
+        dbgp(profile_elem)
+        dtos[twitter_id] = (profile_elem, activities)
+    return dtos, soup
+
 if __name__ == "__main__":
     dtos = OrderedDict()
     for twitter_id in twitter_ids:
+        soup = None
+        twitter_id_html = twitter_id + ".html"
+        if debug_html:
+            html_doc = ""
+            with open(twitter_id_html, "r", encoding = "utf-8") as html_file:
+                html_doc = html_file.read()
+            dtos, soup = parse_html(html_doc, dtos)
+            continue
         dbgp(('url=', search_url + twitter_id))
         r = requests.get(search_url + twitter_id, headers=HEADER)
         if r.status_code == 200:
             json = r.json()
             html_doc = json['items_html']
-            soup = BeautifulSoup(html_doc, 'html.parser')
-            profile_li = soup.find("li", class_ = "AdaptiveStreamUserGallery")
-            dbgp(profile_li)
-            profile_img = profile_li.find("img", class_ = "ProfileCard-avatarImage")["src"]
-            #[tweets, followings, followers]
-            profile_stats = ["".join(elem.get_text().split()) for elem in profile_li.find_all("span", class_ = "ProfileCardStats-statValue")]
-            # TODO: is there an elvis operator in python?
-            profile_bio = profile_li.find("p", class_ = "ProfileCard-bio")
-            # TODO: These if and default values
-            if profile_bio:
-                profile_bio = profile_bio.get_text()
-            profile_location = profile_li.find("p", class_ = "ProfileCard-locationAndUrl")
-            if profile_location:
-                profile_location = profile_location.get_text()
-            profile_elem = (profile_img, profile_stats, profile_bio, profile_location)
-            activities = []
-            lis = soup.find_all("li", class_ = "js-stream-item")
-            for li in lis:
-                dbgp(li)
-                ts = -1
-                tweet = li.find("p", class_ = "TweetTextSize")
-                if tweet:
-                    tweet = tweet.get_text()
-                    ts = li.find("span", class_ = "_timestamp")
-                    if ts:
-                        ts = ts["data-time-ms"]
-                if not tweet or ts == -1:
-                    continue
-                dbgp(("tweet:", tweet))
-                r = ()
-                account_group = li.find("a", class_ = "account-group")
-                author_img = account_group.find("img", class_ = "avatar")
-                r = r + ((account_group['href'][1:],author_img['src']),)
-                replies = li.find("div", class_ = "ReplyingToContextBelowAuthor")
-                if replies:
-                    for a in replies.find_all('a'):
-                        r = r + (a['href'][1:],)
-                activities.append((tweet, ts, r))
-            dbgp(activities)
-            dbgp(profile_elem)
-            dtos[twitter_id] = (profile_elem, activities)
+            dtos, soup  = parse_html(html_doc, dtos)
             if debug:
-                with open(twitter_id + ".html", "w", encoding = "utf-8") as html_file:
+                with open(twitter_id_html, "w", encoding = "utf-8") as html_file:
                     html_file.write(soup.prettify())
         else:
             print("Got status:", r.status_code)
