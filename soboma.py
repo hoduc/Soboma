@@ -2,6 +2,7 @@ import requests
 import configparser
 import datetime
 import sys
+from enum import IntEnum
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
@@ -23,10 +24,12 @@ DEBUG_KEY = "debug"
 DEBUG_PRINT_KEY = "debug_print"
 DEBUG_HTML_KEY = "debug_html"
 DEBUG_PRINT_LEVEL_KEY = "debug_print_level"
-DEBUG_PRINT_LEVEL_INFO = "INFO"
-DEBUG_PRINT_LEVEL_DEBUG = "DEBUG"
-DEBUG_PRINT_LEVEL_ERROR = "ERROR"
-DEBUG_PRINT_LEVEL_WARN = "WARN"
+
+class DebugPrintLevel(IntEnum):
+    DEBUG = 1
+    INFO = 2
+    WARN = 3
+    ERROR = 4
 
 twitter_config = configparser.ConfigParser()
 twitter_config.read(CONFIG_FILE_NAME)
@@ -44,13 +47,19 @@ def dbg_print(msg, debug_print_level, should_print = True):
         print("{} {}".format("[" + debug_print_level + "]", msg))
 
 def dbgp_helper(msg, debug_log_level):
-    dbg_print(msg, debug_print_level, debug_print and  debug_print_level == debug_log_level)
+    dbg_print(msg, debug_log_level.name, debug_print and int(DebugPrintLevel[debug_print_level]) < int(debug_log_level))
 
 def dbgp(msg):
-    dbgp_helper(msg, DEBUG_PRINT_LEVEL_DEBUG)
+    dbgp_helper(msg, DebugPrintLevel.DEBUG)
 
 def dbgpi(msg):
-    dbgp_helper(msg,  DEBUG_PRINT_LEVEL_INFO)
+    dbgp_helper(msg, DebugPrintLevel.INFO)
+
+def dbgpw(msg):
+    dbgp_helper(msg, DebugPrintLevel.WARN)
+
+def dbgpe(msg):
+    dbgp_helper(msg, DebugPrintLevel.ERROR)
 
 class RunnableSignal(QObject):
     done = pyqtSignal(int, QImage)
@@ -131,7 +140,7 @@ class MainWindow(QMainWindow):
             for (tweet, ts, replies) in activities:
                 post_layout = QHBoxLayout()
                 rep_author_img_url = None
-                dbgpi((tweet, ts, replies))
+                dbgp((tweet, ts, replies))
                 author, author_img_url = replies[0] # always has sth
                 tweet_text = "@" + author
                 if len(replies) > 1: # real replies
@@ -171,7 +180,7 @@ class MainWindow(QMainWindow):
 def parse_html(html_doc, dtos):
     soup = BeautifulSoup(html_doc, 'html.parser')
     profile_li = soup.find("li", class_ = "AdaptiveStreamUserGallery")
-    dbgpi(profile_li)
+    dbgp(profile_li)
     profile_img = profile_li.find("img", class_ = "ProfileCard-avatarImage")["src"]
     #[tweets, followings, followers]
     profile_stats = ["".join(elem.get_text().split()) for elem in profile_li.find_all("span", class_ = "ProfileCardStats-statValue")]
@@ -215,26 +224,29 @@ def parse_html(html_doc, dtos):
 if __name__ == "__main__":
     dtos = OrderedDict()
     for twitter_id in twitter_ids:
-        soup = None
-        twitter_id_html = twitter_id + ".html"
-        if debug_html:
-            html_doc = ""
-            with open(twitter_id_html, "r", encoding = "utf-8") as html_file:
-                html_doc = html_file.read()
-            dtos, soup = parse_html(html_doc, dtos)
-            continue
-        dbgp(('url=', search_url + twitter_id))
-        r = requests.get(search_url + twitter_id, headers=HEADER)
-        if r.status_code == 200:
-            json = r.json()
-            html_doc = json['items_html']
-            dtos, soup  = parse_html(html_doc, dtos)
-            if debug:
-                with open(twitter_id_html, "w", encoding = "utf-8") as html_file:
-                    html_file.write(soup.prettify())
-        else:
-            print("Got status:", r.status_code)
-            print(r)
+        try:
+            soup = None
+            twitter_id_html = twitter_id + ".html"
+            if debug_html:
+                html_doc = ""
+                with open(twitter_id_html, "r", encoding = "utf-8") as html_file:
+                    html_doc = html_file.read()
+                dtos, soup = parse_html(html_doc, dtos)
+                continue
+            dbgp(('url=', search_url + twitter_id))
+            r = requests.get(search_url + twitter_id, headers=HEADER)
+            if r.status_code == 200:
+                json = r.json()
+                html_doc = json['items_html']
+                dtos, soup  = parse_html(html_doc, dtos)
+                if debug:
+                    with open(twitter_id_html, "w", encoding = "utf-8") as html_file:
+                        html_file.write(soup.prettify())
+            else:
+                print("Got status:", r.status_code)
+                print(r)
+        except:
+            dbpe("ERROR {} : {}".format(twitter_id, sys.exc_info()[0]))
 
     if ui:
         app = QApplication([])
