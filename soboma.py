@@ -118,12 +118,8 @@ class MainWindow(QMainWindow):
             profile_elem, activities = self.dtos[twitter_id]
             profile_url, profile_stats, bio, location = profile_elem
             # TODO: These if and default values
-            if not location:
-                location = ""
-            else:
-                location = "".join(location.split()) + "\n"
-            if not bio:
-                bio = ""
+            location = "" if not location else location.strip() + "\n"            
+            bio = "" if not bio else bio.strip() + "\n"
 
             profile_mapping = ["Tweets", "Following", "Followers"]
             profile_stats_text = ""
@@ -132,6 +128,7 @@ class MainWindow(QMainWindow):
             if profile_stats_text:
                 profile_stats_text = profile_stats_text[:-1] + "\n"
             profile_label = QLabel(location + bio + profile_stats_text)
+            profile_label.setWordWrap(True)
             profile_img_label = QLabel()
             img_urls.append((0,profile_url))
             self.img_labels.append(profile_img_label)
