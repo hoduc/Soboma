@@ -2,6 +2,7 @@ import requests
 import configparser
 import datetime
 import sys
+import traceback
 from enum import IntEnum
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
@@ -36,7 +37,6 @@ twitter_config.read(CONFIG_FILE_NAME)
 search_url = twitter_config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
 twitter_ids = twitter_config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
 ui = twitter_config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
-
 debug = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_KEY)
 debug_print = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_PRINT_KEY)
 debug_print_level = twitter_config[TWITTER_CONFIG_SECTION][DEBUG_PRINT_LEVEL_KEY]
@@ -47,7 +47,7 @@ def dbg_print(msg, debug_print_level, should_print = True):
         print("{} {}".format("[" + debug_print_level + "]", msg))
 
 def dbgp_helper(msg, debug_log_level):
-    dbg_print(msg, debug_log_level.name, debug_print and int(DebugPrintLevel[debug_print_level]) < int(debug_log_level))
+    dbg_print(msg, debug_log_level.name, debug_print and int(DebugPrintLevel[debug_print_level]) <= int(debug_log_level))
 
 def dbgp(msg):
     dbgp_helper(msg, DebugPrintLevel.DEBUG)
@@ -116,24 +116,25 @@ class MainWindow(QMainWindow):
         img_urls = []
         for twitter_id in self.dtos:
             profile_elem, activities = self.dtos[twitter_id]
-            profile_url, profile_stats, bio, location = profile_elem
-            # TODO: These if and default values
-            location = "" if not location else location.strip() + "\n"            
-            bio = "" if not bio else bio.strip() + "\n"
+            if profile_elem:
+                profile_url, profile_stats, bio, location = profile_elem
+                # TODO: These if and default values
+                location = "" if not location else location.strip() + "\n"
+                bio = "" if not bio else bio.strip() + "\n"
 
-            profile_mapping = ["Tweets", "Following", "Followers"]
-            profile_stats_text = ""
-            for (i, stat) in enumerate(profile_stats):
-                profile_stats_text += "{} {},".format(stat, profile_mapping[i])
-            if profile_stats_text:
-                profile_stats_text = profile_stats_text[:-1] + "\n"
-            profile_label = QLabel(location + bio + profile_stats_text)
-            profile_label.setWordWrap(True)
-            profile_img_label = QLabel()
-            img_urls.append((0,profile_url))
-            self.img_labels.append(profile_img_label)
-            self.layout.addWidget(profile_label)
-            self.layout.addWidget(profile_img_label)
+                profile_mapping = ["Tweets", "Following", "Followers"]
+                profile_stats_text = ""
+                for (i, stat) in enumerate(profile_stats):
+                    profile_stats_text += "{} {},".format(stat, profile_mapping[i])
+                if profile_stats_text:
+                    profile_stats_text = profile_stats_text[:-1] + "\n"
+                profile_label = QLabel(location + bio + profile_stats_text)
+                profile_label.setWordWrap(True)
+                profile_img_label = QLabel()
+                img_urls.append((0,profile_url))
+                self.img_labels.append(profile_img_label)
+                self.layout.addWidget(profile_label)
+                self.layout.addWidget(profile_img_label)
             for (tweet, ts, replies) in activities:
                 post_layout = QHBoxLayout()
                 rep_author_img_url = None
@@ -174,23 +175,30 @@ class MainWindow(QMainWindow):
 
 
 
-def parse_html(html_doc, dtos):
+def parse_html(html_doc, dtos, page, twitter_id):
     soup = BeautifulSoup(html_doc, 'html.parser')
-    profile_li = soup.find("li", class_ = "AdaptiveStreamUserGallery")
-    dbgp(profile_li)
-    profile_img = profile_li.find("img", class_ = "ProfileCard-avatarImage")["src"]
-    #[tweets, followings, followers]
-    profile_stats = ["".join(elem.get_text().split()) for elem in profile_li.find_all("span", class_ = "ProfileCardStats-statValue")]
-    # TODO: is there an elvis operator in python?
-    profile_bio = profile_li.find("p", class_ = "ProfileCard-bio")
-    # TODO: These if and default values
-    if profile_bio:
-        profile_bio = profile_bio.get_text()
-    profile_location = profile_li.find("p", class_ = "ProfileCard-locationAndUrl")
-    if profile_location:
-        profile_location = profile_location.get_text()
-    profile_elem = (profile_img, profile_stats, profile_bio, profile_location)
     activities = []
+    profile_elem = None
+    if page == 0:
+        profile_li = soup.find("li", class_ = "AdaptiveStreamUserGallery")
+        if profile_li:
+            dbgp(profile_li)
+            profile_img = profile_li.find("img", class_ = "ProfileCard-avatarImage")
+            if profile_img:
+                profile_img = profile_img["src"]
+            #[tweets, followings, followers]
+            profile_stats = ["".join(elem.get_text().split()) for elem in profile_li.find_all("span", class_ = "ProfileCardStats-statValue")]
+            # TODO: is there an elvis operator in python?
+            profile_bio = profile_li.find("p", class_ = "ProfileCard-bio")
+            # TODO: These if and default values
+            if profile_bio:
+                profile_bio = profile_bio.get_text()
+            profile_location = profile_li.find("p", class_ = "ProfileCard-locationAndUrl")
+            if profile_location:
+                profile_location = profile_location.get_text()
+            profile_elem = (profile_img, profile_stats, profile_bio, profile_location)
+        dtos[twitter_id] = (profile_elem, activities)
+        dbgp(profile_elem)
     lis = soup.find_all("li", class_ = "js-stream-item")
     for li in lis:
         dbgp(li)
@@ -213,37 +221,58 @@ def parse_html(html_doc, dtos):
             for a in replies.find_all('a'):
                 r = r + (a['href'][1:],)
         activities.append((tweet, ts, r))
-        dbgp(activities)
-        dbgp(profile_elem)
-        dtos[twitter_id] = (profile_elem, activities)
+        if page > 0:
+            dtos[twitter_id] = (dtos[twitter_id][0], dtos[twitter_id][1] + activities)
     return dtos, soup
 
 if __name__ == "__main__":
     dtos = OrderedDict()
     for twitter_id in twitter_ids:
-        try:
-            soup = None
-            twitter_id_html = twitter_id + ".html"
-            if debug_html:
-                html_doc = ""
-                with open(twitter_id_html, "r", encoding = "utf-8") as html_file:
-                    html_doc = html_file.read()
-                dtos, soup = parse_html(html_doc, dtos)
-                continue
-            dbgp(('url=', search_url + twitter_id))
-            r = requests.get(search_url + twitter_id, headers=HEADER)
-            if r.status_code == 200:
-                json = r.json()
-                html_doc = json['items_html']
-                dtos, soup  = parse_html(html_doc, dtos)
-                if debug:
-                    with open(twitter_id_html, "w", encoding = "utf-8") as html_file:
-                        html_file.write(soup.prettify())
-            else:
-                print("Got status:", r.status_code)
-                print(r)
-        except:
-            dbpe("ERROR {} : {}".format(twitter_id, sys.exc_info()[0]))
+        page, marker = 0, None
+        while True:
+            twitter_id_html = twitter_id + "_" + str(page) + ".html"
+            html_doc = ""
+            try:
+                soup = None
+                if debug_html:
+                    with open(twitter_id_html, "r", encoding = "utf-8") as html_file:
+                        html_doc = html_file.read()
+                    dtos, soup = parse_html(html_doc, dtos, page, twitter_id)
+                    page += 1
+                    continue
+                url = search_url + twitter_id
+                if page == 0:
+                    url += "&min_position=0"
+                if marker:
+                    dbgp("marker = " + marker)
+                    url += "&max_position=" + marker
+                dbgp(('url=', url))
+                r = requests.get(url, headers=HEADER)
+                if r.status_code == 200:
+                    json = r.json()
+                    html_doc = json['items_html']
+                    if 'max_position' in json:
+                        marker = json['max_position']
+                    dbgp("marker = " + marker)
+                    dtos, soup = parse_html(html_doc, dtos, page, twitter_id)
+                    if debug:
+                        with open(twitter_id_html, "w", encoding = "utf-8") as html_file:
+                            html_file.write(soup.prettify())
+                    if not json['has_more_items']:
+                        break
+                else:
+                    dbgp("Got status:", r.status_code)
+                    dbgp(r)
+            except:
+                dbgpe("ERROR {} : {}".format(twitter_id, sys.exc_info()[0]))
+                dbgpe(traceback.format_exc())
+                soup = BeautifulSoup(html_doc, 'html.parser')
+                with open(twitter_id_html, "w", encoding = "utf-8") as html_file:
+                    html_file.write(soup.prettify())
+                sys.exit(-1)
+            page += 1
+        dbgp(dtos)
+
 
     if ui:
         app = QApplication([])
