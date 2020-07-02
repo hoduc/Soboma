@@ -120,10 +120,10 @@ def wrap_text_href(text):
     word = ""
     i = 0
     while i < len(text):
-        while i < len(text) and text[i] == " ":
+        while i < len(text) and (text[i] == " " or text[i] == "\n"):
             s += text[i]
             i += 1
-        while i < len(text) and text[i] != " ":
+        while i < len(text) and text[i] != " " and text[i] != "\n":
             word += text[i]
             i += 1
         # either found word
