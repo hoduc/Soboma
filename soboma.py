@@ -3,7 +3,9 @@ import configparser
 import datetime
 import sys
 import traceback
+import twitter
 from enum import IntEnum
+from operator import itemgetter
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
@@ -18,6 +20,11 @@ UA = UserAgent()
 HEADER = {'User-Agent' : str(UA.chrome) }
 CONFIG_FILE_NAME = "config"
 TWITTER_CONFIG_SECTION = "twitter"
+CONSUMER_KEY = "consumer_key"
+CONSUMER_SECRET = "consumer_secret"
+ACCESS_TOKEN_KEY = "access_token_key"
+ACCESS_TOKEN_SECRET = "access_token_secret"
+USE_API_KEY = "use_api"
 SEARCH_URL_KEY = "search_url"
 TWITTER_IDS_KEY = "twitter_ids"
 UI_KEY = "ui"
@@ -34,6 +41,11 @@ class DebugPrintLevel(IntEnum):
 
 twitter_config = configparser.ConfigParser()
 twitter_config.read(CONFIG_FILE_NAME)
+consumer_key = twitter_config[TWITTER_CONFIG_SECTION][CONSUMER_KEY]
+consumer_secret = twitter_config[TWITTER_CONFIG_SECTION][CONSUMER_SECRET]
+access_token_key = twitter_config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_KEY]
+access_token_secret = twitter_config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_SECRET]
+use_api = twitter_config[TWITTER_CONFIG_SECTION].getboolean(USE_API_KEY)
 search_url = twitter_config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
 twitter_ids = twitter_config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
 ui = twitter_config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
@@ -208,7 +220,7 @@ def parse_html(html_doc, dtos, page, twitter_id):
             tweet = tweet.get_text()
             ts = li.find("span", class_ = "_timestamp")
             if ts:
-                ts = ts["data-time-ms"]
+                ts = int(ts["data-time-ms"])
         if not tweet or ts == -1:
             continue
         dbgp(("tweet:", tweet))
@@ -225,53 +237,104 @@ def parse_html(html_doc, dtos, page, twitter_id):
             dtos[twitter_id] = (dtos[twitter_id][0], dtos[twitter_id][1] + activities)
     return dtos, soup
 
+def get_tweets(twitter_id, dtos):
+    page, marker = 0, None
+    while True:
+        twitter_id_html = twitter_id + "_" + str(page) + ".html"
+        html_doc = ""
+        try:
+            soup = None
+            if debug_html:
+                with open(twitter_id_html, "r", encoding = "utf-8") as html_file:
+                    html_doc = html_file.read()
+                dtos, soup = parse_html(html_doc, dtos, page, twitter_id)
+                page += 1
+                continue
+            url = search_url + twitter_id
+            if page == 0:
+                url += "&min_position=0"
+            if marker:
+                dbgp("marker = " + marker)
+                url += "&max_position=" + marker
+            dbgp(('url=', url))
+            r = requests.get(url, headers=HEADER)
+            if r.status_code == 200:
+                json = r.json()
+                html_doc = json['items_html']
+                if 'max_position' in json:
+                    marker = json['max_position']
+                dbgp("marker = " + marker)
+                dtos, soup = parse_html(html_doc, dtos, page, twitter_id)
+                if debug:
+                    with open(twitter_id_html, "w", encoding = "utf-8") as html_file:
+                        html_file.write(soup.prettify())
+                if not json['has_more_items']:
+                    break
+            else:
+                dbgp("Got status:", r.status_code)
+                dbgp(r)
+        except:
+            dbgpe("ERROR {} : {}".format(twitter_id, sys.exc_info()[0]))
+            dbgpe(traceback.format_exc())
+            soup = BeautifulSoup(html_doc, 'html.parser')
+            with open(twitter_id_html, "w", encoding = "utf-8") as html_file:
+                html_file.write(soup.prettify())
+                sys.exit(-1)
+        page += 1
+    return dtos
+
+def get_tweets_api(twitter_id, dtos, api):
+    dbgpi("Getting tweets for {}".format(twitter_id))
+    # get profile contents
+    profile_elem = None
+    user = api.GetUser(screen_name=twitter_id)
+    profile_img = user.profile_image_url
+    profile_bio = user.description
+    profile_location = user.location
+    profile_stats = [user.statuses_count, user.friends_count, user.followers_count]
+    profile_elem = (profile_img, profile_stats, profile_bio, profile_location)
+    dbgp(user)
+    # activities
+    activities = []
+    timeline = api.GetUserTimeline(screen_name=twitter_id, count=1)
+    earliest_tweet = min(timeline, key=lambda x: x.id).id
+    dbgpi(("getting tweets before:", earliest_tweet))
+
+    while True:
+        tweets = api.GetUserTimeline(
+            screen_name=twitter_id, max_id=earliest_tweet, count=1
+        )
+        new_earliest = min(tweets, key=lambda x: x.id).id
+
+        if not tweets or new_earliest == earliest_tweet:
+            break
+        else:
+            earliest_tweet = new_earliest
+            dbgpi(("getting tweets before:", earliest_tweet))
+            timeline += tweets
+    dbgpi(timeline)
+    for tweet in timeline:
+        dbgpi(tweet)
+        replies = ((tweet.user.screen_name, tweet.user.profile_image_url))
+        if tweet.in_reply_to_screen_name:
+            replies = replies (tweet.in_reply_to_screen_name, )
+        activities.append((tweet.text, tweet.created_at, replies))
+    dtos[twitter_id] = (profile_elem, activities)
+    return dtos
+
 if __name__ == "__main__":
     dtos = OrderedDict()
+    api = None if not use_api else twitter.Api(consumer_key=consumer_key,
+                  consumer_secret=consumer_secret,
+                  access_token_key=access_token_key,
+                  access_token_secret=access_token_secret)
     for twitter_id in twitter_ids:
-        page, marker = 0, None
-        while True:
-            twitter_id_html = twitter_id + "_" + str(page) + ".html"
-            html_doc = ""
-            try:
-                soup = None
-                if debug_html:
-                    with open(twitter_id_html, "r", encoding = "utf-8") as html_file:
-                        html_doc = html_file.read()
-                    dtos, soup = parse_html(html_doc, dtos, page, twitter_id)
-                    page += 1
-                    continue
-                url = search_url + twitter_id
-                if page == 0:
-                    url += "&min_position=0"
-                if marker:
-                    dbgp("marker = " + marker)
-                    url += "&max_position=" + marker
-                dbgp(('url=', url))
-                r = requests.get(url, headers=HEADER)
-                if r.status_code == 200:
-                    json = r.json()
-                    html_doc = json['items_html']
-                    if 'max_position' in json:
-                        marker = json['max_position']
-                    dbgp("marker = " + marker)
-                    dtos, soup = parse_html(html_doc, dtos, page, twitter_id)
-                    if debug:
-                        with open(twitter_id_html, "w", encoding = "utf-8") as html_file:
-                            html_file.write(soup.prettify())
-                    if not json['has_more_items']:
-                        break
-                else:
-                    dbgp("Got status:", r.status_code)
-                    dbgp(r)
-            except:
-                dbgpe("ERROR {} : {}".format(twitter_id, sys.exc_info()[0]))
-                dbgpe(traceback.format_exc())
-                soup = BeautifulSoup(html_doc, 'html.parser')
-                with open(twitter_id_html, "w", encoding = "utf-8") as html_file:
-                    html_file.write(soup.prettify())
-                sys.exit(-1)
-            page += 1
-        dbgp(dtos)
+        if not use_api:
+            dtos = get_tweets(twitter_id, dtos)
+        else:
+            dtos = get_tweets_api(twitter_id, dtos, api)
+        # sorted(dtos[twitter_id][1], key = itemgetter(1))
+        dbgpi(dtos[twitter_id])
 
 
     if ui:
