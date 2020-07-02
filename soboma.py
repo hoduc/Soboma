@@ -157,7 +157,7 @@ class MainWindow(QMainWindow):
                     tweet_text += " replies to " + ",".join("@" + tid for tid in replies[1:]) + " : "
                 else: # author post
                     tweet_text += " : "
-                tweet_text += tweet + "\n...at " + datetime.datetime.fromtimestamp(float(ts)/1000).strftime("%Y-%m-%d %H:%M:%S")
+                tweet_text += tweet + "\n...at " + ts
                 tweet_author_label_img = QLabel()
                 img_urls.append((len(img_urls), author_img_url))
                 self.img_labels.append(tweet_author_label_img)
@@ -220,7 +220,7 @@ def parse_html(html_doc, dtos, page, twitter_id):
             tweet = tweet.get_text()
             ts = li.find("span", class_ = "_timestamp")
             if ts:
-                ts = int(ts["data-time-ms"])
+                ts = datetime.datetime.fromtimestamp(float(ts["data-time-ms"])/1000).strftime("%Y-%m-%d %H:%M:%S")
         if not tweet or ts == -1:
             continue
         dbgp(("tweet:", tweet))
@@ -296,30 +296,15 @@ def get_tweets_api(twitter_id, dtos, api):
     dbgp(user)
     # activities
     activities = []
-    timeline = api.GetUserTimeline(screen_name=twitter_id, count=1)
-    earliest_tweet = min(timeline, key=lambda x: x.id).id
-    dbgpi(("getting tweets before:", earliest_tweet))
-
-    while True:
-        tweets = api.GetUserTimeline(
-            screen_name=twitter_id, max_id=earliest_tweet, count=1
-        )
-        new_earliest = min(tweets, key=lambda x: x.id).id
-
-        if not tweets or new_earliest == earliest_tweet:
-            break
-        else:
-            earliest_tweet = new_earliest
-            dbgpi(("getting tweets before:", earliest_tweet))
-            timeline += tweets
-    dbgpi(timeline)
+    timeline = api.GetUserTimeline(screen_name=twitter_id, count=20)
     for tweet in timeline:
-        dbgpi(tweet)
-        replies = ((tweet.user.screen_name, tweet.user.profile_image_url))
+        dbgp(tweet)
+        replies = ((tweet.user.screen_name, tweet.user.profile_image_url), )
         if tweet.in_reply_to_screen_name:
-            replies = replies (tweet.in_reply_to_screen_name, )
+            replies = replies + (tweet.in_reply_to_screen_name, )
         activities.append((tweet.text, tweet.created_at, replies))
     dtos[twitter_id] = (profile_elem, activities)
+    dbgp("Finished getting tweets for {}".format(twitter_id))
     return dtos
 
 if __name__ == "__main__":
