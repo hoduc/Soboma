@@ -25,6 +25,7 @@ CONSUMER_SECRET = "consumer_secret"
 ACCESS_TOKEN_KEY = "access_token_key"
 ACCESS_TOKEN_SECRET = "access_token_secret"
 USE_API_KEY = "use_api"
+NUMBER_OF_TWEETS_KEY = "number_of_tweets"
 SEARCH_URL_KEY = "search_url"
 TWITTER_IDS_KEY = "twitter_ids"
 UI_KEY = "ui"
@@ -46,6 +47,7 @@ consumer_secret = twitter_config[TWITTER_CONFIG_SECTION][CONSUMER_SECRET]
 access_token_key = twitter_config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_KEY]
 access_token_secret = twitter_config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_SECRET]
 use_api = twitter_config[TWITTER_CONFIG_SECTION].getboolean(USE_API_KEY)
+number_of_tweets = twitter_config[TWITTER_CONFIG_SECTION][NUMBER_OF_TWEETS_KEY]
 search_url = twitter_config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
 twitter_ids = twitter_config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
 ui = twitter_config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
@@ -109,6 +111,26 @@ class DownloadImgThreadPool(QObject):
             self.pool.start(download_img_thread)
         self.pool.waitForDone()
 
+def href_word(word):
+    return "<a href=\"{}\">{}</a>".format(word, word) if word and word.startswith("http") else word
+
+# find and replace all link into href
+def wrap_text_href(text):
+    s = ""
+    word = ""
+    i = 0
+    while i < len(text):
+        while i < len(text) and text[i] == " ":
+            s += text[i]
+            i += 1
+        while i < len(text) and text[i] != " ":
+            word += text[i]
+            i += 1
+        # either found word
+        s += href_word(word)
+        word = ""
+    s += href_word(word)
+    return s
 
 class MainWindow(QMainWindow):
     main_widget = None
@@ -142,6 +164,7 @@ class MainWindow(QMainWindow):
                     profile_stats_text = profile_stats_text[:-1] + "\n"
                 profile_label = QLabel(location + bio + profile_stats_text)
                 profile_label.setWordWrap(True)
+                profile_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
                 profile_img_label = QLabel()
                 img_urls.append((0,profile_url))
                 self.img_labels.append(profile_img_label)
@@ -157,15 +180,20 @@ class MainWindow(QMainWindow):
                     tweet_text += " replies to " + ",".join("@" + tid for tid in replies[1:]) + " : "
                 else: # author post
                     tweet_text += " : "
-                tweet_text += tweet + "\n...at " + ts
+                tweet_text += wrap_text_href(tweet) + "\n...at " + ts
+                dbgpi("final text:{}".format(tweet_text))
                 tweet_author_label_img = QLabel()
                 img_urls.append((len(img_urls), author_img_url))
                 self.img_labels.append(tweet_author_label_img)
                 post_layout.addWidget(tweet_author_label_img)
                 # the tweet
                 tweet_label = QLabel(tweet_text)
+                tweet_label.setTextFormat(Qt.RichText)
+                #tweet_label.setText(tweet_text)
                 tweet_label.setScaledContents(True)
                 tweet_label.setWordWrap(True)
+                tweet_label.setOpenExternalLinks(True)
+                tweet_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
                 post_layout.addWidget(tweet_label)
                 post_layout.addStretch(1)
                 # add to parent layout
@@ -297,22 +325,25 @@ def get_tweets_api(twitter_id, dtos, api):
     # activities
     activities = []
     # TODO : Get all tweets for days
-    timeline = api.GetUserTimeline(screen_name=twitter_id, count=20)
+    timeline = api.GetUserTimeline(screen_name=twitter_id, count=number_of_tweets)
     for tweet in timeline:
-        dbgpi(tweet)
+        dbgp(tweet)
         replies = ()
         author = () # (screen_name, profile_image_url)
         if tweet.retweeted_status: # retweet has to pull different stuff
+            dbgp("Retweeting")
             rt = tweet.retweeted_status
             author = (rt.user.screen_name, rt.user.profile_image_url)
         else:
+            dbgp("Not Retweeting")
             author = (tweet.user.screen_name, tweet.user.profile_image_url)
         replies = (author , )
-        if tweet.in_reply_to_screen_name:
+        if tweet.in_reply_to_screen_name: # not replying to self
+            dbgp("Replying to {}".format(tweet.in_reply_to_screen_name))
             replies = replies + (tweet.in_reply_to_screen_name, )
         activities.append((tweet.text, tweet.created_at, replies))
     dtos[twitter_id] = (profile_elem, activities)
-    dbgp("Finished getting tweets for {}".format(twitter_id))
+    dbgpi("Finished getting tweets for {}".format(twitter_id))
     return dtos
 
 if __name__ == "__main__":
