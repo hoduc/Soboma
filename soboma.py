@@ -296,10 +296,18 @@ def get_tweets_api(twitter_id, dtos, api):
     dbgp(user)
     # activities
     activities = []
+    # TODO : Get all tweets for days
     timeline = api.GetUserTimeline(screen_name=twitter_id, count=20)
     for tweet in timeline:
-        dbgp(tweet)
-        replies = ((tweet.user.screen_name, tweet.user.profile_image_url), )
+        dbgpi(tweet)
+        replies = ()
+        author = () # (screen_name, profile_image_url)
+        if tweet.retweeted_status: # retweet has to pull different stuff
+            rt = tweet.retweeted_status
+            author = (rt.user.screen_name, rt.user.profile_image_url)
+        else:
+            author = (tweet.user.screen_name, tweet.user.profile_image_url)
+        replies = (author , )
         if tweet.in_reply_to_screen_name:
             replies = replies + (tweet.in_reply_to_screen_name, )
         activities.append((tweet.text, tweet.created_at, replies))
