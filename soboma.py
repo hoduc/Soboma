@@ -185,10 +185,10 @@ class MainWindow(QMainWindow):
                 img_urls.append((0,profile_url))
                 self.img_labels.append(profile_img_label)
                 post_layout = QHBoxLayout()
-                post_layout.addStretch(1)
                 post_layout.addWidget(profile_img_label)
                 post_layout.addWidget(profile_label)
-                self.layout.addLayout(post_layout)
+                post_layout.addStretch(1)
+                self.layout.addLayout(post_layout, 1)
             for (tweet, ts, replies) in activities:
                 post_layout = QHBoxLayout()
                 rep_author_img_url = None
@@ -208,7 +208,6 @@ class MainWindow(QMainWindow):
                 # the tweet
                 tweet_label = QLabel(tweet_text)
                 tweet_label.setTextFormat(Qt.RichText)
-                #tweet_label.setText(tweet_text)
                 tweet_label.setScaledContents(True)
                 tweet_label.setWordWrap(True)
                 tweet_label.setOpenExternalLinks(True)
@@ -216,7 +215,7 @@ class MainWindow(QMainWindow):
                 post_layout.addWidget(tweet_label)
                 post_layout.addStretch(1)
                 # add to parent layout
-                self.layout.addLayout(post_layout)
+                self.layout.addLayout(post_layout, 1)
         self.main_widget.setLayout(self.layout)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
