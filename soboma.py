@@ -352,7 +352,7 @@ def get_tweets_api(twitter_id, dtos, api):
         if tweet.retweeted_status: # retweet has to pull different stuff
             dbgp("Retweeting")
             rt = tweet.retweeted_status
-            author = (rt.user.screen_name, rt.user.profile_image_url)
+            author = (tweet.user.screen_name, rt.user.profile_image_url)
         else:
             dbgp("Not Retweeting")
             author = (tweet.user.screen_name, tweet.user.profile_image_url)
@@ -385,12 +385,3 @@ if __name__ == "__main__":
         window = MainWindow(app, dtos)
         window.show()
         sys.exit(app.exec_())
-
-
-
-
-
-
-
-
-
