@@ -178,14 +178,17 @@ class MainWindow(QMainWindow):
                     profile_stats_text += "{} {},".format(stat, profile_mapping[i])
                 if profile_stats_text:
                     profile_stats_text = profile_stats_text[:-1] + "\n"
-                profile_label = QLabel(location + bio + profile_stats_text)
+                profile_label = QLabel(bio + location + profile_stats_text)
                 profile_label.setWordWrap(True)
                 profile_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
                 profile_img_label = QLabel()
                 img_urls.append((0,profile_url))
                 self.img_labels.append(profile_img_label)
-                self.layout.addWidget(profile_label)
-                self.layout.addWidget(profile_img_label)
+                post_layout = QHBoxLayout()
+                post_layout.addStretch(1)
+                post_layout.addWidget(profile_img_label)
+                post_layout.addWidget(profile_label)
+                self.layout.addLayout(post_layout)
             for (tweet, ts, replies) in activities:
                 post_layout = QHBoxLayout()
                 rep_author_img_url = None
@@ -343,7 +346,7 @@ def get_tweets_api(twitter_id, dtos, api):
     # TODO : Get all tweets for days
     timeline = api.GetUserTimeline(screen_name=twitter_id, count=number_of_tweets)
     for tweet in timeline:
-        dbgp(tweet)
+        dbgpi(tweet)
         replies = ()
         author = () # (screen_name, profile_image_url)
         if tweet.retweeted_status: # retweet has to pull different stuff
