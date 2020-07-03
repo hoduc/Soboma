@@ -4,6 +4,7 @@ import datetime
 import sys
 import traceback
 import twitter
+from timeit import default_timer as timer
 from enum import IntEnum
 from operator import itemgetter
 from fake_useragent import UserAgent
@@ -79,19 +80,26 @@ class RunnableSignal(QObject):
     done = pyqtSignal(int, QImage)
 
 class DownloadImgRunnable(QRunnable):
-    def __init__(self, index, url):
+    def __init__(self, index, url, img_cache):
         super(DownloadImgRunnable, self).__init__()
         self.index, self.url = index, url
+        self.img_cache = img_cache
         self.runnable_signal = RunnableSignal()
 
     def run(self):
         dbgp(("about to run Runnable:", self.index, self.url))
-        downloaded_img = Image.open(requests.get(self.url, stream=True).raw)
+        q_img = None
+        if self.url in self.img_cache:
+            dbgp("{} in cache !!!".format(self.url))
+            q_img = self.img_cache[self.url]
+        else:
+            downloaded_img = Image.open(requests.get(self.url, stream=True).raw)
 
-        # to avoid gc-ed ?
-        # https://stackoverflow.com/questions/61354609/pyqt5-setpixmap-crashing-when-trying-to-show-image-in-label
-        q_img = QImage(ImageQt(downloaded_img).copy())
-        dbgp(("finished:", self.index, self.url, q_img))
+            # to avoid gc-ed ?
+            # https://stackoverflow.com/questions/61354609/pyqt5-setpixmap-crashing-when-trying-to-show-image-in-label
+            q_img = QImage(ImageQt(downloaded_img).copy())
+            self.img_cache[self.url] = q_img
+            dbgp(("finished:", self.index, self.url, q_img))
         self.runnable_signal.done.emit(self.index, q_img)
 
 
@@ -100,16 +108,24 @@ class DownloadImgThreadPool(QObject):
         super(DownloadImgThreadPool, self).__init__()
         self.pool = QThreadPool.globalInstance()
         self.meta_urls = meta_urls
+        self.img_cache = {}
+        # TODO: Better way for passing these delegate and
+        # the dependencies of meta_url
+        # having index in it
         self.ui_update_delegate = ui_update_delegate
 
     def start(self):
+        start = timer()
         dbgp("starting threadpool")
         for (index, url) in self.meta_urls:
-            download_img_thread = DownloadImgRunnable(index, url)
+            download_img_thread = DownloadImgRunnable(index, url, self.img_cache)
             # connect
             download_img_thread.runnable_signal.done[int, QImage].connect(self.ui_update_delegate)
             self.pool.start(download_img_thread)
         self.pool.waitForDone()
+        end = timer()
+        dbgpi("Thread pool taken {} seconds".format(str(end-start)))
+        dbgp("Finished Threadpool")
 
 def href_word(word):
     return "<a href=\"{}\">{}</a>".format(word, word) if word and word.startswith("http") else word
@@ -181,7 +197,7 @@ class MainWindow(QMainWindow):
                 else: # author post
                     tweet_text += " : "
                 tweet_text += wrap_text_href(tweet) + "\n...at " + ts
-                dbgpi("final text:{}".format(tweet_text))
+                dbgp("final text:{}".format(tweet_text))
                 tweet_author_label_img = QLabel()
                 img_urls.append((len(img_urls), author_img_url))
                 self.img_labels.append(tweet_author_label_img)
@@ -358,7 +374,7 @@ if __name__ == "__main__":
         else:
             dtos = get_tweets_api(twitter_id, dtos, api)
         # sorted(dtos[twitter_id][1], key = itemgetter(1))
-        dbgpi(dtos[twitter_id])
+        dbgp(dtos[twitter_id])
 
 
     if ui:
