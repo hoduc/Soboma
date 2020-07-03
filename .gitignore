@@ -192,3 +192,5 @@ flycheck_*.el
 
 # Ignore config file
 config
+
+# Test utf-8 recoded
