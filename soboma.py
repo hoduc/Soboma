@@ -5,6 +5,9 @@ import sys
 import traceback
 import twitter
 import json
+from dateutil.parser import parse
+from dateutil import tz
+from datetime import datetime
 from timeit import default_timer as timer
 from enum import IntEnum
 from operator import itemgetter
@@ -152,6 +155,10 @@ def wrap_text_href(text):
     s += href_word(word)
     return s
 
+# to local time
+def convert_dt(date_str):
+    return datetime.strftime(parse(date_str).replace(tzinfo=tz.tzutc()).astimezone(tz=tz.tzlocal()),'%Y-%m-%d %H:%M:%S')
+
 class MainWindow(QMainWindow):
     main_widget = None
     main_widget_layout = None
@@ -207,7 +214,7 @@ class MainWindow(QMainWindow):
                     tweet_text += " replies to " + ",".join("@" + tid for tid in replies[1:]) + " : "
                 else: # author post
                     tweet_text += " : "
-                tweet_text += wrap_text_href(tweet) + "\n...at " + ts
+                tweet_text += wrap_text_href(tweet) + "\n...at " + convert_dt(ts)
                 dbgp("final text:{}".format(tweet_text))
                 tweet_author_label_img = QLabel()
                 img_urls.append((len(img_urls), author_img_url))
@@ -225,6 +232,7 @@ class MainWindow(QMainWindow):
                 # add to parent layout
                 self.layout.addLayout(post_layout, 1)
         self.main_widget_layout.addLayout(self.layout)
+        # TODO: scroll on the left widget
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll_area.setWidgetResizable(True)
