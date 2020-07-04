@@ -4,6 +4,7 @@ import datetime
 import sys
 import traceback
 import twitter
+import json
 from timeit import default_timer as timer
 from enum import IntEnum
 from operator import itemgetter
@@ -344,8 +345,10 @@ def get_tweets_api(twitter_id, dtos, api):
     activities = []
     # TODO : Get all tweets for days
     timeline = api.GetUserTimeline(screen_name=twitter_id, count=number_of_tweets)
+    tweets = []
     for tweet in timeline:
-        dbgpi(tweet)
+        tweets.append(str(tweet))
+        dbgp(tweet)
         replies = ()
         author = () # (screen_name, profile_image_url)
         if tweet.retweeted_status: # retweet has to pull different stuff
@@ -360,6 +363,15 @@ def get_tweets_api(twitter_id, dtos, api):
             dbgp("Replying to {}".format(tweet.in_reply_to_screen_name))
             replies = replies + (tweet.in_reply_to_screen_name, )
         activities.append((tweet.text, tweet.created_at, replies))
+    if debug:
+        with open(twitter_id + ".json", "w") as json_file:
+            json_dict = {}
+            json_dict["profile_img"] = profile_img
+            json_dict["profile_stats"] = profile_stats
+            json_dict["profile_bio"] = profile_bio
+            json_dict["profile_location"] = profile_location
+            json_dict["tweets"] = tweets
+            json.dump(json_dict, json_file)
     dtos[twitter_id] = (profile_elem, activities)
     dbgpi("Finished getting tweets for {}".format(twitter_id))
     return dtos
@@ -375,7 +387,6 @@ if __name__ == "__main__":
             dtos = get_tweets(twitter_id, dtos)
         else:
             dtos = get_tweets_api(twitter_id, dtos, api)
-        # sorted(dtos[twitter_id][1], key = itemgetter(1))
         dbgp(dtos[twitter_id])
 
 
