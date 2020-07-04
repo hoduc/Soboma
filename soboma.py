@@ -13,7 +13,8 @@ from bs4 import BeautifulSoup
 from collections import OrderedDict
 from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, QMainWindow
 from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, pyqtSignal
+from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, QUrl, pyqtSignal
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PIL import Image
 from PIL.ImageQt import ImageQt
 
@@ -32,6 +33,7 @@ SEARCH_URL_KEY = "search_url"
 TWITTER_IDS_KEY = "twitter_ids"
 UI_KEY = "ui"
 DEBUG_KEY = "debug"
+DEBUG_BROWSER_KEY = "debug_browser"
 DEBUG_PRINT_KEY = "debug_print"
 DEBUG_HTML_KEY = "debug_html"
 DEBUG_PRINT_LEVEL_KEY = "debug_print_level"
@@ -54,6 +56,7 @@ search_url = twitter_config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
 twitter_ids = twitter_config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
 ui = twitter_config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
 debug = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_KEY)
+debug_browser = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_BROWSER_KEY)
 debug_print = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_PRINT_KEY)
 debug_print_level = twitter_config[TWITTER_CONFIG_SECTION][DEBUG_PRINT_LEVEL_KEY]
 debug_html = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_HTML_KEY)
@@ -151,7 +154,9 @@ def wrap_text_href(text):
 
 class MainWindow(QMainWindow):
     main_widget = None
+    main_widget_layout = None
     layout = None
+    debug_browser_layout = None
     def __init__(self, app, dtos):
         super(MainWindow, self).__init__()
         self.app = app # pass app just in case need to do some events
@@ -162,8 +167,10 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         self.scroll_area = QScrollArea()
         self.main_widget = QWidget()
+        self.main_widget_layout = QHBoxLayout()
         self.layout = QVBoxLayout()
         self.layout.addStretch(1)
+        self.debug_browser_layout = QVBoxLayout()
         img_urls = []
         for twitter_id in self.dtos:
             profile_elem, activities = self.dtos[twitter_id]
@@ -217,11 +224,17 @@ class MainWindow(QMainWindow):
                 post_layout.addStretch(1)
                 # add to parent layout
                 self.layout.addLayout(post_layout, 1)
-        self.main_widget.setLayout(self.layout)
+        self.main_widget_layout.addLayout(self.layout)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setWidget(self.main_widget)
+        self.main_widget.setLayout(self.main_widget_layout)
+        if debug_browser:
+            twitter_web_view = QWebEngineView()
+            twitter_web_view.load(QUrl("https://twitter.com/{}/with_replies".format(twitter_id)))
+            self.debug_browser_layout.addWidget(twitter_web_view)
+            self.main_widget_layout.addLayout(self.debug_browser_layout)
         self.setCentralWidget(self.scroll_area)
         self.setWindowTitle("Soboma")
         # start background worker thread
