@@ -34,6 +34,8 @@ ACCESS_TOKEN_KEY = "access_token_key"
 ACCESS_TOKEN_SECRET = "access_token_secret"
 USE_API_KEY = "use_api"
 NUMBER_OF_TWEETS_KEY = "number_of_tweets"
+STATUS_LINK_KEY = "status_link"
+OPEN_STATUS_LINK_KEY = "open_status_link"
 SEARCH_URL_KEY = "search_url"
 TWITTER_IDS_KEY = "twitter_ids"
 UI_KEY = "ui"
@@ -61,6 +63,8 @@ access_token_key = config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_KEY]
 access_token_secret = config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_SECRET]
 use_api = config[TWITTER_CONFIG_SECTION].getboolean(USE_API_KEY)
 number_of_tweets = config[TWITTER_CONFIG_SECTION][NUMBER_OF_TWEETS_KEY]
+status_link = config[TWITTER_CONFIG_SECTION][STATUS_LINK_KEY]
+open_status_link = config[TWITTER_CONFIG_SECTION][OPEN_STATUS_LINK_KEY]
 search_url = config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
 twitter_ids = config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
 ui = config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
@@ -141,8 +145,10 @@ class DownloadImgThreadPool(QObject):
         dbgpi("Thread pool taken {} seconds".format(str(end-start)))
         dbgp("Finished Threadpool")
 
-def href_word(word):
-    return "<a href=\"{}\">{}</a>".format(word, word) if word and word.startswith("http") else word
+def href_word(word, content = ""):
+    if content == "":
+        content = word
+    return "<a href=\"{}\">{}</a>".format(word, content) if word and word.startswith("http") else word
 
 # find and replace all link into href
 def wrap_text_href(text):
@@ -219,7 +225,7 @@ class MainWindow(QMainWindow):
                 author, author_img_url = replies[0] # always has sth
                 tweet_text = "@" + author
                 if len(replies) > 1: # real replies
-                    tweet_text += " replies to " + ",".join("@" + tid for tid in replies[1:]) + " : "
+                    tweet_text += " replies to " + ",".join("@" + reply[0] + "(" + href_word(status_link.format(reply[0], reply[1]), open_status_link) + ")" for reply  in replies[1:]) + " : "
                 else: # author post
                     tweet_text += " : "
                 tweet_text += wrap_text_href(tweet) + "\n...at " + convert_dt(ts)
@@ -394,7 +400,7 @@ def get_tweets_api(twitter_id, dtos, api):
         replies = (author , )
         if tweet.in_reply_to_screen_name: # not replying to self
             dbgp("Replying to {}".format(tweet.in_reply_to_screen_name))
-            replies = replies + (tweet.in_reply_to_screen_name, )
+            replies = replies + ((tweet.in_reply_to_screen_name, tweet.in_reply_to_status_id), )
         activities.append((tweet.text, tweet.created_at, replies))
     if debug:
         with open(twitter_id + ".json", "w") as json_file:
