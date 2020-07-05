@@ -14,7 +14,7 @@ from operator import itemgetter
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
-from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, QMainWindow
+from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, QMainWindow, QFrame
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, QUrl, pyqtSignal
 from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -49,6 +49,7 @@ class DebugPrintLevel(IntEnum):
 
 twitter_config = configparser.ConfigParser()
 twitter_config.read(CONFIG_FILE_NAME)
+# TODO : Separate into different social config
 consumer_key = twitter_config[TWITTER_CONFIG_SECTION][CONSUMER_KEY]
 consumer_secret = twitter_config[TWITTER_CONFIG_SECTION][CONSUMER_SECRET]
 access_token_key = twitter_config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_KEY]
@@ -160,8 +161,9 @@ def convert_dt(date_str):
     return datetime.strftime(parse(date_str).replace(tzinfo=tz.tzutc()).astimezone(tz=tz.tzlocal()),'%Y-%m-%d %H:%M:%S')
 
 class MainWindow(QMainWindow):
+    window_widget = None
+    window_widget_layout = None
     main_widget = None
-    main_widget_layout = None
     layout = None
     debug_browser_layout = None
     def __init__(self, app, dtos):
@@ -173,11 +175,11 @@ class MainWindow(QMainWindow):
 
     def init_ui(self):
         self.scroll_area = QScrollArea()
+        self.window_widget = QWidget()
+        self.window_widget_layout = QHBoxLayout()
         self.main_widget = QWidget()
-        self.main_widget_layout = QHBoxLayout()
         self.layout = QVBoxLayout()
         self.layout.addStretch(1)
-        self.debug_browser_layout = QVBoxLayout()
         img_urls = []
         for twitter_id in self.dtos:
             profile_elem, activities = self.dtos[twitter_id]
@@ -231,19 +233,23 @@ class MainWindow(QMainWindow):
                 post_layout.addStretch(1)
                 # add to parent layout
                 self.layout.addLayout(post_layout, 1)
-        self.main_widget_layout.addLayout(self.layout)
+        self.main_widget.setLayout(self.layout)
         # TODO: scroll on the left widget
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameStyle(QFrame.NoFrame)
         self.scroll_area.setWidget(self.main_widget)
-        self.main_widget.setLayout(self.main_widget_layout)
         if debug_browser:
             twitter_web_view = QWebEngineView()
             twitter_web_view.load(QUrl("https://twitter.com/{}/with_replies".format(twitter_id)))
+            self.debug_browser_layout = QVBoxLayout()
             self.debug_browser_layout.addWidget(twitter_web_view)
-            self.main_widget_layout.addLayout(self.debug_browser_layout)
-        self.setCentralWidget(self.scroll_area)
+            self.window_widget_layout.addLayout(self.debug_browser_layout)
+
+        self.window_widget_layout.addWidget(self.scroll_area)
+        self.window_widget.setLayout(self.window_widget_layout)
+        self.setCentralWidget(self.window_widget)
         self.setWindowTitle("Soboma")
         # start background worker thread
         self.download_img_thread_pool = DownloadImgThreadPool(img_urls, self.update_img_label)
