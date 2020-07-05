@@ -25,6 +25,8 @@ from PIL.ImageQt import ImageQt
 UA = UserAgent()
 HEADER = {'User-Agent' : str(UA.chrome) }
 CONFIG_FILE_NAME = "config"
+COMMON_CONFIG_SECTION = "common"
+WINDOW_TITLE_KEY = "window_title"
 TWITTER_CONFIG_SECTION = "twitter"
 CONSUMER_KEY = "consumer_key"
 CONSUMER_SECRET = "consumer_secret"
@@ -37,6 +39,7 @@ TWITTER_IDS_KEY = "twitter_ids"
 UI_KEY = "ui"
 DEBUG_KEY = "debug"
 DEBUG_BROWSER_KEY = "debug_browser"
+DEBUG_BROWSER_VIEW_URL_KEY = "debug_browser_view_url"
 DEBUG_PRINT_KEY = "debug_print"
 DEBUG_HTML_KEY = "debug_html"
 DEBUG_PRINT_LEVEL_KEY = "debug_print_level"
@@ -47,23 +50,26 @@ class DebugPrintLevel(IntEnum):
     WARN = 3
     ERROR = 4
 
-twitter_config = configparser.ConfigParser()
-twitter_config.read(CONFIG_FILE_NAME)
+
+config = configparser.ConfigParser()
+config.read(CONFIG_FILE_NAME)
+window_title = config[COMMON_CONFIG_SECTION][WINDOW_TITLE_KEY]
 # TODO : Separate into different social config
-consumer_key = twitter_config[TWITTER_CONFIG_SECTION][CONSUMER_KEY]
-consumer_secret = twitter_config[TWITTER_CONFIG_SECTION][CONSUMER_SECRET]
-access_token_key = twitter_config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_KEY]
-access_token_secret = twitter_config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_SECRET]
-use_api = twitter_config[TWITTER_CONFIG_SECTION].getboolean(USE_API_KEY)
-number_of_tweets = twitter_config[TWITTER_CONFIG_SECTION][NUMBER_OF_TWEETS_KEY]
-search_url = twitter_config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
-twitter_ids = twitter_config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
-ui = twitter_config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
-debug = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_KEY)
-debug_browser = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_BROWSER_KEY)
-debug_print = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_PRINT_KEY)
-debug_print_level = twitter_config[TWITTER_CONFIG_SECTION][DEBUG_PRINT_LEVEL_KEY]
-debug_html = twitter_config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_HTML_KEY)
+consumer_key = config[TWITTER_CONFIG_SECTION][CONSUMER_KEY]
+consumer_secret = config[TWITTER_CONFIG_SECTION][CONSUMER_SECRET]
+access_token_key = config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_KEY]
+access_token_secret = config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_SECRET]
+use_api = config[TWITTER_CONFIG_SECTION].getboolean(USE_API_KEY)
+number_of_tweets = config[TWITTER_CONFIG_SECTION][NUMBER_OF_TWEETS_KEY]
+search_url = config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
+twitter_ids = config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
+ui = config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
+debug = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_KEY)
+debug_browser = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_BROWSER_KEY)
+debug_browser_view_url = config[TWITTER_CONFIG_SECTION][DEBUG_BROWSER_VIEW_URL_KEY]
+debug_print = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_PRINT_KEY)
+debug_print_level = config[TWITTER_CONFIG_SECTION][DEBUG_PRINT_LEVEL_KEY]
+debug_html = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_HTML_KEY)
 
 def dbg_print(msg, debug_print_level, should_print = True):
     if should_print:
@@ -242,7 +248,7 @@ class MainWindow(QMainWindow):
         self.scroll_area.setWidget(self.main_widget)
         if debug_browser:
             twitter_web_view = QWebEngineView()
-            twitter_web_view.load(QUrl("https://twitter.com/{}/with_replies".format(twitter_id)))
+            twitter_web_view.load(QUrl(debug_browser_view_url.format(twitter_id)))
             self.debug_browser_layout = QVBoxLayout()
             self.debug_browser_layout.addWidget(twitter_web_view)
             self.window_widget_layout.addLayout(self.debug_browser_layout)
@@ -250,7 +256,7 @@ class MainWindow(QMainWindow):
         self.window_widget_layout.addWidget(self.scroll_area)
         self.window_widget.setLayout(self.window_widget_layout)
         self.setCentralWidget(self.window_widget)
-        self.setWindowTitle("Soboma")
+        self.setWindowTitle(window_title)
         # start background worker thread
         self.download_img_thread_pool = DownloadImgThreadPool(img_urls, self.update_img_label)
         self.download_img_thread_pool.start()
