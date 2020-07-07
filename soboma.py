@@ -56,24 +56,24 @@ class DebugPrintLevel(IntEnum):
 config = configparser.ConfigParser()
 config.read(CONFIG_FILE_NAME)
 window_title = config[COMMON_CONFIG_SECTION][WINDOW_TITLE_KEY]
+debug = config[COMMON_CONFIG_SECTION].getboolean(DEBUG_KEY)
+debug_browser = config[COMMON_CONFIG_SECTION].getboolean(DEBUG_BROWSER_KEY)
+debug_print = config[COMMON_CONFIG_SECTION].getboolean(DEBUG_PRINT_KEY)
+debug_print_level = config[COMMON_CONFIG_SECTION][DEBUG_PRINT_LEVEL_KEY]
+debug_html = config[COMMON_CONFIG_SECTION].getboolean(DEBUG_HTML_KEY)
+ui = config[COMMON_CONFIG_SECTION].getboolean(UI_KEY)
+use_api = config[COMMON_CONFIG_SECTION].getboolean(USE_API_KEY)
 # TODO : Separate into different social config
 consumer_key = config[TWITTER_CONFIG_SECTION][CONSUMER_KEY]
 consumer_secret = config[TWITTER_CONFIG_SECTION][CONSUMER_SECRET]
 access_token_key = config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_KEY]
 access_token_secret = config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_SECRET]
-use_api = config[TWITTER_CONFIG_SECTION].getboolean(USE_API_KEY)
 number_of_tweets = config[TWITTER_CONFIG_SECTION][NUMBER_OF_TWEETS_KEY]
 status_link = config[TWITTER_CONFIG_SECTION][STATUS_LINK_KEY]
 open_status_link = config[TWITTER_CONFIG_SECTION][OPEN_STATUS_LINK_KEY]
 search_url = config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
 twitter_ids = config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
-ui = config[TWITTER_CONFIG_SECTION].getboolean(UI_KEY)
-debug = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_KEY)
-debug_browser = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_BROWSER_KEY)
 debug_browser_view_url = config[TWITTER_CONFIG_SECTION][DEBUG_BROWSER_VIEW_URL_KEY]
-debug_print = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_PRINT_KEY)
-debug_print_level = config[TWITTER_CONFIG_SECTION][DEBUG_PRINT_LEVEL_KEY]
-debug_html = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_HTML_KEY)
 
 def dbg_print(msg, debug_print_level, should_print = True):
     if should_print:
