@@ -218,17 +218,19 @@ class MainWindow(QMainWindow):
                 post_layout.addWidget(profile_label)
                 post_layout.addStretch(1)
                 self.layout.addLayout(post_layout, 1)
-            for (tweet, ts, replies) in activities:
+            for (tweet, ts, urls, replies) in activities:
                 post_layout = QHBoxLayout()
                 rep_author_img_url = None
                 dbgp((tweet, ts, replies))
                 author, author_img_url = replies[0] # always has sth
                 tweet_text = "@" + author
                 if len(replies) > 1: # real replies
-                    tweet_text += " replies to " + ",".join("@" + reply[0] + "(" + href_word(status_link.format(reply[0], reply[1]), open_status_link) + ")" for reply  in replies[1:]) + " : "
+                    tweet_text += " replies to " + ",".join("@" + reply for reply  in replies[1:]) + " : "
                 else: # author post
                     tweet_text += " : "
-                tweet_text += wrap_text_href(tweet) + "\n...at " + convert_dt(ts)
+                tweet_text += wrap_text_href(tweet) + "\n...at " + convert_dt(ts) + "\n"
+                dbgp(("Got urls:", urls))
+                tweet_text += "\n".join(href_word(url, open_status_link) for url in urls)
                 dbgp("final text:{}".format(tweet_text))
                 tweet_author_label_img = QLabel()
                 img_urls.append((len(img_urls), author_img_url))
@@ -369,6 +371,7 @@ def get_tweets(twitter_id, dtos):
         page += 1
     return dtos
 
+
 def get_tweets_api(twitter_id, dtos, api):
     dbgpi("Getting tweets for {}".format(twitter_id))
     # get profile contents
@@ -390,18 +393,28 @@ def get_tweets_api(twitter_id, dtos, api):
         dbgp(tweet)
         replies = ()
         author = () # (screen_name, profile_image_url)
+        # favor whatever url it has
+        urls = None
         if tweet.retweeted_status: # retweet has to pull different stuff
             dbgp("Retweeting")
             rt = tweet.retweeted_status
             author = (tweet.user.screen_name, rt.user.profile_image_url)
+            if not urls:
+                urls = (status_link.format(rt.user.screen_name, tweet.id),)
         else:
             dbgp("Not Retweeting")
             author = (tweet.user.screen_name, tweet.user.profile_image_url)
+            if not urls:
+                urls = (status_link.format(tweet.user.screen_name, tweet.id),)
         replies = (author , )
         if tweet.in_reply_to_screen_name: # not replying to self
             dbgp("Replying to {}".format(tweet.in_reply_to_screen_name))
-            replies = replies + ((tweet.in_reply_to_screen_name, tweet.in_reply_to_status_id), )
-        activities.append((tweet.text, tweet.created_at, replies))
+            replies = replies + (tweet.in_reply_to_screen_name, )
+            if not urls:
+                dbgp("Reconstructing urls:")
+                urls = (status_link.format(tweet.in_reply_to_screen_name, tweet.in_reply_to_status_id),)
+        dbgp(("final_urls:", urls))
+        activities.append((tweet.text, tweet.created_at, urls, replies))
     if debug:
         with open(twitter_id + ".json", "w") as json_file:
             json_dict = {}
@@ -410,7 +423,7 @@ def get_tweets_api(twitter_id, dtos, api):
             json_dict["profile_bio"] = profile_bio
             json_dict["profile_location"] = profile_location
             json_dict["tweets"] = tweets
-            json.dump(json_dict, json_file)
+            json.dump(json_dict, json_file, indent=4)
     dtos[twitter_id] = (profile_elem, activities)
     dbgpi("Finished getting tweets for {}".format(twitter_id))
     return dtos
