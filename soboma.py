@@ -14,9 +14,9 @@ from operator import itemgetter
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
-from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QLabel, QMainWindow, QFrame
+from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QSizePolicy, QLabel, QMainWindow, QFrame
 from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, QUrl, pyqtSignal
+from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, QUrl, QSize, pyqtSignal
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PIL import Image
 from PIL.ImageQt import ImageQt
@@ -172,6 +172,31 @@ def wrap_text_href(text):
 def convert_dt(date_str):
     return datetime.strftime(parse(date_str).replace(tzinfo=tz.tzutc()).astimezone(tz=tz.tzlocal()),'%Y-%m-%d %H:%M:%S')
 
+
+# TODO: Code clean up
+class ResizableLabelImg(QLabel):
+    def __init__(self, pixmap = None, parent = None):
+        QLabel.__init__(self, parent)
+        self.pixmap = pixmap
+
+    def setPixmap(self, pixmap):
+        self.pixmap = pixmap
+        self.scaleLabelImg()
+
+    def heightForWidth(self, width):
+        return self.height() if not self.pixmap else self.pixmap.height()/self.pixmap.width()
+
+    def sizeHint(self):
+        return QSize(self.width(), self.heightForWidth(self.width()))
+
+    def scaleLabelImg(self):
+        if self.pixmap:
+            super().setPixmap(self.pixmap.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+    def resizeEvent(self, event):
+        self.scaleLabelImg()
+
+
 class MainWindow(QMainWindow):
     window_widget = None
     window_widget_layout = None
@@ -248,7 +273,8 @@ class MainWindow(QMainWindow):
                 tweet_layout.addWidget(tweet_label)
                 if medias:
                     for media in medias:
-                        media_attachement_label = QLabel()
+                        media_attachement_label = ResizableLabelImg()
+                        media_attachement_label.setScaledContents(True)
                         img_urls.append((len(img_urls), media))
                         self.img_labels.append(media_attachement_label)
                         tweet_layout.addWidget(media_attachement_label)
@@ -280,7 +306,8 @@ class MainWindow(QMainWindow):
 
     def update_img_label(self, label_index, q_img):
         dbgp(("updating :", label_index, q_img))
-        self.img_labels[label_index].setPixmap(QPixmap.fromImage(q_img))
+        img_label = self.img_labels[label_index]
+        img_label.setPixmap(QPixmap.fromImage(q_img))
 
 
 
