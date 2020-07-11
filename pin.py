@@ -9,5 +9,5 @@ class Pin:
     created_at: str = ""
     content: str = ""
     urls: List[str] = field(default_factory=list)
-    media_urls: List[str] = field(default_factory=list)
+    media_urls: List[List[str]] = field(default_factory=list)
     relations = [] # not sure how to add this yet

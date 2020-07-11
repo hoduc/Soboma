@@ -16,6 +16,8 @@ from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
 from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QSizePolicy, QLabel, QMainWindow, QFrame
+from PyQt5.QtMultimediaWidgets import QVideoWidget
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, QUrl, QSize, pyqtSignal
 from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -269,9 +271,24 @@ class MainWindow(QMainWindow):
                 tweet_layout.addWidget(tweet_label)
                 if medias:
                     for media in medias:
+                        media_type, media_url = media[0], media[1]
+                        if media_type == "video":
+                            # IN ORDER FOR THIS TO WORK
+                            # Download these filter in windows:
+                            # https://github.com/Nevcairiel/LAVFilters/releases
+                            dbgpi("video {}".format(media[-1]))
+                            media_video_url = media[-1]
+                            video_widget = QVideoWidget()
+                            tweet_layout.addWidget(video_widget)
+                            media_player = QMediaPlayer()
+                            media_player.setMedia(QMediaContent(QUrl(media_video_url)))
+                            media_player.setVideoOutput(video_widget)
+                            video_widget.show()
+                            media_player.play()
+                            continue
                         media_attachement_label = ResizableLabelImg()
                         media_attachement_label.setScaledContents(True)
-                        img_urls.append((len(img_urls), media))
+                        img_urls.append((len(img_urls), media_url))
                         self.img_labels.append(media_attachement_label)
                         tweet_layout.addWidget(media_attachement_label)
                 post_layout.addLayout(tweet_layout)
@@ -446,8 +463,16 @@ def get_tweets_api(twitter_id, dtos, api):
             medias = tweet.media
 
         urls = [status_link.format(profile_name, tweet.id)]
+        media_urls = []
         if medias:
-            medias = tuple(media.media_url for media in medias)
+            for media in medias:
+                media_url = [media.type, media.media_url]
+                media_url.append(media.media_url)
+                if media.type == "video":
+                    video_url = media.video_info["variants"][-1]["url"]
+                    dbgp("video {}".format(video_url))
+                    media_url.append(video_url)
+                media_urls.append(media_url)
         content = "@" + profile_name
         if tweet.in_reply_to_screen_name: # not replying to self
             dbgp("Replying to {}".format(tweet.in_reply_to_screen_name))
@@ -458,7 +483,7 @@ def get_tweets_api(twitter_id, dtos, api):
         content += " : " + tweet.text
         dbgp(("final_urls:", urls))
         # TODO: relation
-        acts.append(Pin(profile_name, profile_url, created_at, content, urls, medias))
+        acts.append(Pin(profile_name, profile_url, created_at, content, urls, media_urls))
     if debug:
         with open(twitter_id + ".json", "w") as json_file:
             json_dict = {}
