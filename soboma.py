@@ -437,16 +437,17 @@ def get_tweets_api(twitter_id, dtos, api):
             rt = tweet.retweeted_status
             profile_name = tweet.user.screen_name
             profile_url = rt.user.profile_image_url
-            urls = [status_link.format(rt.user.screen_name, tweet.id)]
+            medias = rt.media
             # TODO: medias on all these
         else:
             dbgp("Not Retweeting")
             profile_name = tweet.user.screen_name
             profile_url = tweet.user.profile_image_url
-            urls = [status_link.format(tweet.user.screen_name, tweet.id)]
-            if tweet.media:
-                medias = tuple(media.media_url for media in tweet.media)
+            medias = tweet.media
 
+        urls = [status_link.format(profile_name, tweet.id)]
+        if medias:
+            medias = tuple(media.media_url for media in medias)
         content = "@" + profile_name
         if tweet.in_reply_to_screen_name: # not replying to self
             dbgp("Replying to {}".format(tweet.in_reply_to_screen_name))
