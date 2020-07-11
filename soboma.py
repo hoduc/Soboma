@@ -15,7 +15,7 @@ from operator import itemgetter
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
-from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QSizePolicy, QLabel, QMainWindow, QFrame
+from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QSizePolicy, QLabel, QPushButton, QMainWindow, QFrame
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtGui import QPixmap, QImage
@@ -200,6 +200,20 @@ class ResizableLabelImg(QLabel):
         self.scaleLabelImg()
 
 
+class MediaPlayer(QWidget):
+    def __init__(self, media_video_url, parent = None):
+        super(MediaPlayer, self).__init__(parent)
+        self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        video_widget = QVideoWidget()
+        layout = QVBoxLayout()
+        layout.addWidget(video_widget)
+        self.setLayout(layout)
+        self.media_player.setMedia(QMediaContent(QUrl(media_video_url)))
+        self.media_player.setVideoOutput(video_widget)
+        self.media_player.play()
+
+
+
 class MainWindow(QMainWindow):
     window_widget = None
     window_widget_layout = None
@@ -276,21 +290,15 @@ class MainWindow(QMainWindow):
                             # IN ORDER FOR THIS TO WORK
                             # Download these filter in windows:
                             # https://github.com/Nevcairiel/LAVFilters/releases
-                            dbgpi("video {}".format(media[-1]))
                             media_video_url = media[-1]
-                            video_widget = QVideoWidget()
-                            tweet_layout.addWidget(video_widget)
-                            media_player = QMediaPlayer()
-                            media_player.setMedia(QMediaContent(QUrl(media_video_url)))
-                            media_player.setVideoOutput(video_widget)
-                            video_widget.show()
-                            media_player.play()
-                            continue
-                        media_attachement_label = ResizableLabelImg()
-                        media_attachement_label.setScaledContents(True)
-                        img_urls.append((len(img_urls), media_url))
-                        self.img_labels.append(media_attachement_label)
-                        tweet_layout.addWidget(media_attachement_label)
+                            dbgp("video {}".format(media_video_url))
+                            tweet_layout.addWidget(MediaPlayer(media_video_url))
+                        else:
+                            media_attachement_label = ResizableLabelImg()
+                            media_attachement_label.setScaledContents(True)
+                            img_urls.append((len(img_urls), media_url))
+                            self.img_labels.append(media_attachement_label)
+                            tweet_layout.addWidget(media_attachement_label)
                 post_layout.addLayout(tweet_layout)
                 post_layout.addStretch(1)
                 # add to parent layout
