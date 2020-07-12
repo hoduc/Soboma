@@ -204,13 +204,23 @@ class MediaPlayer(QWidget):
     def __init__(self, media_video_url, parent = None):
         super(MediaPlayer, self).__init__(parent)
         self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
-        video_widget = QVideoWidget()
-        layout = QVBoxLayout()
-        layout.addWidget(video_widget)
-        self.setLayout(layout)
+        self.video_widget = QVideoWidget()
         self.media_player.setMedia(QMediaContent(QUrl(media_video_url)))
-        self.media_player.setVideoOutput(video_widget)
-        self.media_player.play()
+        self.media_player.setVideoOutput(self.video_widget)
+        self.media_player.pause()
+        self.play_pause_button = QPushButton()
+        self.play_pause_button.setText("Play/Pause")
+        self.play_pause_button.clicked.connect(self.on_media_state_changed)
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.video_widget)
+        self.layout.addWidget(self.play_pause_button)
+        self.setLayout(self.layout)
+
+    def on_media_state_changed(self):
+        if self.media_player.state() == QMediaPlayer.PausedState or self.media_player.state() == QMediaPlayer.StoppedState:
+            self.media_player.play()
+        else:
+            self.media_player.pause()
 
 
 
