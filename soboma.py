@@ -15,11 +15,11 @@ from operator import itemgetter
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
-from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QSizePolicy, QLabel, QPushButton, QMainWindow, QFrame
+from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QSizePolicy, QLabel, QMainWindow, QFrame
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, QUrl, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, QUrl, QSize, QPoint, pyqtSignal
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PIL import Image
 from PIL.ImageQt import ImageQt
@@ -208,15 +208,12 @@ class MediaPlayer(QWidget):
         self.media_player.setMedia(QMediaContent(QUrl(media_video_url)))
         self.media_player.setVideoOutput(self.video_widget)
         self.media_player.pause()
-        self.play_pause_button = QPushButton()
-        self.play_pause_button.setText("Play/Pause")
-        self.play_pause_button.clicked.connect(self.on_media_state_changed)
+        self.mouseReleaseEvent = self.on_media_state_changed
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.video_widget)
-        self.layout.addWidget(self.play_pause_button)
         self.setLayout(self.layout)
 
-    def on_media_state_changed(self):
+    def on_media_state_changed(self, event):
         if self.media_player.state() == QMediaPlayer.PausedState or self.media_player.state() == QMediaPlayer.StoppedState:
             self.media_player.play()
         else:
