@@ -210,6 +210,7 @@ class MediaPlayer(QWidget):
         self.media_player.pause()
         self.mouseReleaseEvent = self.on_media_state_changed
         self.layout = QVBoxLayout()
+        self.layout.addWidget(QLabel("video/gif"))
         self.layout.addWidget(self.video_widget)
         self.setLayout(self.layout)
 
@@ -483,10 +484,11 @@ def get_tweets_api(twitter_id, dtos, api):
             for media in medias:
                 media_url = [media.type, media.media_url]
                 media_url.append(media.media_url)
-                if media.type == "video":
+                # TODO: Confirm gif saved as mp4 ?
+                if media.type == "video" or media.type == "animated_gif":
                     video_url = media.video_info["variants"][-1]["url"]
                     dbgp("video {}".format(video_url))
-                    media_url.append(video_url)
+                    media_url = ["video", media.media_url, video_url]
                 media_urls.append(media_url)
         content = "@" + profile_name
         if tweet.in_reply_to_screen_name: # not replying to self
