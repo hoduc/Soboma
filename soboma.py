@@ -5,6 +5,7 @@ import sys
 import traceback
 import twitter
 import json
+import dataclasses
 from pin import Pin
 from dateutil.parser import parse
 from dateutil import tz
@@ -15,6 +16,7 @@ from operator import itemgetter
 from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
+from pathlib import Path
 from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QSizePolicy, QLabel, QMainWindow, QFrame
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
@@ -48,6 +50,7 @@ DEBUG_BROWSER_VIEW_URL_KEY = "debug_browser_view_url"
 DEBUG_PRINT_KEY = "debug_print"
 DEBUG_HTML_KEY = "debug_html"
 DEBUG_PRINT_LEVEL_KEY = "debug_print_level"
+DEBUG_JSON_KEY = "debug_json"
 
 class DebugPrintLevel(IntEnum):
     DEBUG = 1
@@ -77,6 +80,7 @@ open_status_link = config[TWITTER_CONFIG_SECTION][OPEN_STATUS_LINK_KEY]
 search_url = config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
 twitter_ids = config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
 debug_browser_view_url = config[TWITTER_CONFIG_SECTION][DEBUG_BROWSER_VIEW_URL_KEY]
+debug_json = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_JSON_KEY)
 
 def dbg_print(msg, debug_print_level, should_print = True):
     if should_print:
@@ -508,6 +512,7 @@ def get_tweets_api(twitter_id, dtos, api):
             json_dict["profile_stats"] = profile_stats
             json_dict["profile_bio"] = profile_bio
             json_dict["profile_location"] = profile_location
+            json_dict["acts"] = [json.dumps(dataclasses.asdict(act)) for act in acts]
             json_dict["tweets"] = tweets
             json.dump(json_dict, json_file, indent=4)
     dtos[twitter_id] = (profile_elem, acts)
@@ -516,14 +521,40 @@ def get_tweets_api(twitter_id, dtos, api):
 
 if __name__ == "__main__":
     dtos = OrderedDict()
-    api = None if not use_api else twitter.Api(consumer_key=consumer_key,
+    api = None if not use_api and not debug_json else twitter.Api(consumer_key=consumer_key,
                   consumer_secret=consumer_secret,
                   access_token_key=access_token_key,
                   access_token_secret=access_token_secret)
     for twitter_id in twitter_ids:
+        if debug_json:
+            dbgp("debug_json")
+            twitter_id_json = twitter_id + ".json"
+            if not Path(twitter_id_json).is_file():
+                dbgp("{} does not exist!!!".format(twitter_id_json))
+            else:
+                with open(twitter_id_json, "r") as json_file:
+                    json_dict = json.load(json_file)
+                    # TODO: idiomatic way of deserialize json
+                    # TODO : better way to write out debugs
+                    acts = []
+                    for act_str in json_dict["acts"]:
+                        act = json.loads(act_str)
+                        profile_name = act["profile_name"]
+                        profile_url = act["profile_url"]
+                        created_at = act["created_at"]
+                        content = act["content"]
+                        urls = act["urls"]
+                        media_urls = act["media_urls"]
+                        acts.append(Pin(profile_name, profile_url, created_at, content, urls, media_urls))
+                    profile_elem = (json_dict["profile_img"], json_dict["profile_stats"], json_dict["profile_bio"], json_dict["profile_location"])
+                    dtos[twitter_id] = (profile_elem, acts)
+            continue
+
         if not use_api:
+            dbgp("not user api")
             dtos = get_tweets(twitter_id, dtos)
         else:
+            dbgp("use api")
             dtos = get_tweets_api(twitter_id, dtos, api)
         dbgp(dtos[twitter_id])
 
