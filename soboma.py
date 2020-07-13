@@ -250,7 +250,8 @@ class MainWindow(QMainWindow):
         for twitter_id in self.dtos:
             profile_elem, activities = self.dtos[twitter_id]
             if profile_elem:
-                profile_url, profile_stats, bio, location = profile_elem
+                bg_widget = QWidget()
+                profile_url, profile_bg_url, profile_stats, bio, location = profile_elem
                 # TODO: These if and default values
                 location = "" if not location else location.strip() + "\n"
                 bio = "" if not bio else bio.strip() + "\n"
@@ -271,7 +272,17 @@ class MainWindow(QMainWindow):
                 post_layout.addWidget(profile_img_label)
                 post_layout.addWidget(profile_label)
                 post_layout.addStretch(1)
-                self.layout.addLayout(post_layout, 1)
+                bg_widget.setLayout(post_layout)
+                # bg_img = QImage(ImageQt(Image.open(requests.get(profile_bg_url, stream=True).raw)).copy())
+                # bArray = QByteArray()
+                # buffer = QBuffer(bArray);
+                # buffer.open(QIODevice.WriteOnly);
+                # bg_img.save(buffer, "JPEG");
+                # img_qml = QString("data:image/jpg;base64,")
+                # img_qml.append(QString.fromLatin1(bArray.toBase64().data()));
+                # bg_widget.setStyleSheet("background-image: url(" + profile_bg_url + "); background-repeat: no-repeat; background-position: center;")
+                # self.layout.addLayout(post_layout, 1)
+                self.layout.addWidget(bg_widget)
             # TODO: Refactor this. Getting unwiedly pretty fast
             for act in activities:
                 post_layout = QHBoxLayout()
@@ -447,10 +458,11 @@ def get_tweets_api(twitter_id, dtos, api):
     user = api.GetUser(screen_name=twitter_id)
     # TODO: Should consider this as part of activities?
     profile_img = user.profile_image_url
+    profile_bg_img = user.profile_banner_url
     profile_bio = user.description
     profile_location = user.location
     profile_stats = [user.statuses_count, user.friends_count, user.followers_count]
-    profile_elem = (profile_img, profile_stats, profile_bio, profile_location)
+    profile_elem = (profile_img, profile_bg_img, profile_stats, profile_bio, profile_location)
     dbgp(user)
     # activities
     acts = []
@@ -509,6 +521,7 @@ def get_tweets_api(twitter_id, dtos, api):
         with open(twitter_id + ".json", "w") as json_file:
             json_dict = {}
             json_dict["profile_img"] = profile_img
+            json_dict["profile_bg_img"] = profile_bg_img
             json_dict["profile_stats"] = profile_stats
             json_dict["profile_bio"] = profile_bio
             json_dict["profile_location"] = profile_location
@@ -546,7 +559,7 @@ if __name__ == "__main__":
                         urls = act["urls"]
                         media_urls = act["media_urls"]
                         acts.append(Pin(profile_name, profile_url, created_at, content, urls, media_urls))
-                    profile_elem = (json_dict["profile_img"], json_dict["profile_stats"], json_dict["profile_bio"], json_dict["profile_location"])
+                    profile_elem = (json_dict["profile_img"], json_dict["profile_bg_img"], json_dict["profile_stats"], json_dict["profile_bio"], json_dict["profile_location"])
                     dtos[twitter_id] = (profile_elem, acts)
             continue
 
