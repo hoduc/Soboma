@@ -17,11 +17,11 @@ from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 from collections import OrderedDict
 from pathlib import Path
-from PyQt5.QtWidgets import QApplication, QWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QSizePolicy, QLabel, QMainWindow, QFrame
+from PyQt5.QtWidgets import QApplication, QWidget, QStackedWidget, QScrollArea, QVBoxLayout, QHBoxLayout, QSizePolicy, QLabel, QMainWindow, QFrame
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, QUrl, QSize, QPoint, pyqtSignal
+from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, QUrl, QSize, QPoint, QByteArray, QBuffer, QIODevice, pyqtSignal
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PIL import Image
 from PIL.ImageQt import ImageQt
@@ -225,17 +225,11 @@ class MediaPlayer(QWidget):
             self.media_player.pause()
 
 
-
-class MainWindow(QMainWindow):
-    window_widget = None
-    window_widget_layout = None
-    main_widget = None
-    layout = None
-    debug_browser_layout = None
-    def __init__(self, app, dtos):
-        super(MainWindow, self).__init__()
-        self.app = app # pass app just in case need to do some events
-        self.dtos = dtos
+class MainWidget(QWidget):
+    def __init__(self, profile_elem, activities):
+        super(MainWidget, self).__init__()
+        self.profile_elem = profile_elem
+        self.activities = activities
         self.img_labels = []
         self.init_ui()
 
@@ -246,88 +240,77 @@ class MainWindow(QMainWindow):
         self.main_widget = QWidget()
         self.layout = QVBoxLayout()
         self.layout.addStretch(1)
+        #self.setLayout(self.layout)
         img_urls = []
-        for twitter_id in self.dtos:
-            profile_elem, activities = self.dtos[twitter_id]
-            if profile_elem:
-                bg_widget = QWidget()
-                profile_url, profile_bg_url, profile_stats, bio, location = profile_elem
-                # TODO: These if and default values
-                location = "" if not location else location.strip() + "\n"
-                bio = "" if not bio else bio.strip() + "\n"
+        # if self.profile_elem:
+        #     bg_widget = QWidget()
+        #     profile_url, profile_bg_url, profile_stats, bio, location = self.profile_elem
+        #     # TODO: These if and default values
+        #     location = "" if not location else location.strip() + "\n"
+        #     bio = "" if not bio else bio.strip() + "\n"
 
-                profile_mapping = ["Tweets", "Following", "Followers"]
-                profile_stats_text = ""
-                for (i, stat) in enumerate(profile_stats):
-                    profile_stats_text += "{} {},".format(stat, profile_mapping[i])
-                if profile_stats_text:
-                    profile_stats_text = profile_stats_text[:-1] + "\n"
-                profile_label = QLabel(bio + location + profile_stats_text)
-                profile_label.setWordWrap(True)
-                profile_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-                profile_img_label = QLabel()
-                img_urls.append((0,profile_url))
-                self.img_labels.append(profile_img_label)
-                post_layout = QHBoxLayout()
-                post_layout.addWidget(profile_img_label)
-                post_layout.addWidget(profile_label)
-                post_layout.addStretch(1)
-                bg_widget.setLayout(post_layout)
-                # bg_img = QImage(ImageQt(Image.open(requests.get(profile_bg_url, stream=True).raw)).copy())
-                # bArray = QByteArray()
-                # buffer = QBuffer(bArray);
-                # buffer.open(QIODevice.WriteOnly);
-                # bg_img.save(buffer, "JPEG");
-                # img_qml = QString("data:image/jpg;base64,")
-                # img_qml.append(QString.fromLatin1(bArray.toBase64().data()));
-                # bg_widget.setStyleSheet("background-image: url(" + profile_bg_url + "); background-repeat: no-repeat; background-position: center;")
-                # self.layout.addLayout(post_layout, 1)
-                self.layout.addWidget(bg_widget)
+        #     profile_mapping = ["Tweets", "Following", "Followers"]
+        #     profile_stats_text = ""
+        #     for (i, stat) in enumerate(profile_stats):
+        #         profile_stats_text += "{} {},".format(stat, profile_mapping[i])
+        #     if profile_stats_text:
+        #         profile_stats_text = profile_stats_text[:-1] + "\n"
+        #     profile_label = QLabel(bio + location + profile_stats_text)
+        #     profile_label.setWordWrap(True)
+        #     profile_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        #     profile_img_label = QLabel()
+        #     img_urls.append((0,profile_url))
+        #     self.img_labels.append(profile_img_label)
+        #     post_layout = QHBoxLayout()
+        #     post_layout.addWidget(profile_img_label)
+        #     post_layout.addWidget(profile_label)
+        #     post_layout.addStretch(1)
+        #     bg_widget.setLayout(post_layout)
+        #     self.layout.addWidget(bg_widget)
             # TODO: Refactor this. Getting unwiedly pretty fast
-            for act in activities:
-                post_layout = QHBoxLayout()
-                rep_author_img_url = None
-                tweet, ts = act.content, act.created_at
-                author, author_img_url, urls, medias = act.profile_name, act.profile_url, act.urls, act.media_urls
-                tweet_text = wrap_text_href(tweet) + "\n...at " + convert_dt(ts) + "\n"
-                dbgp(("Got urls:", urls))
-                tweet_text += "\n".join(href_word(url, open_status_link) for url in urls)
-                dbgp("final text:{}".format(tweet_text))
-                tweet_author_label_img = QLabel()
-                img_urls.append((len(img_urls), author_img_url))
-                self.img_labels.append(tweet_author_label_img)
-                post_layout.addWidget(tweet_author_label_img)
-                # the tweet
-                tweet_layout = QVBoxLayout()
-                tweet_label = QLabel(tweet_text)
-                tweet_label.setTextFormat(Qt.RichText)
-                tweet_label.setScaledContents(True)
-                tweet_label.setWordWrap(True)
-                tweet_label.setOpenExternalLinks(True)
-                tweet_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-                tweet_layout.addWidget(tweet_label)
-                if medias:
-                    for media in medias:
-                        media_type, media_url = media[0], media[1]
-                        if media_type == "video":
-                            # IN ORDER FOR THIS TO WORK
-                            # Download these filter in windows:
-                            # https://github.com/Nevcairiel/LAVFilters/releases
-                            media_video_url = media[-1]
-                            dbgp("video {}".format(media_video_url))
-                            tweet_layout.addWidget(MediaPlayer(media_video_url))
-                        else:
-                            media_attachement_label = ResizableLabelImg()
-                            media_attachement_label.setScaledContents(True)
-                            img_urls.append((len(img_urls), media_url))
-                            self.img_labels.append(media_attachement_label)
-                            tweet_layout.addWidget(media_attachement_label)
-                post_layout.addLayout(tweet_layout)
-                post_layout.addStretch(1)
-                # add to parent layout
-                self.layout.addLayout(post_layout, 1)
+        for act in self.activities:
+            post_layout = QHBoxLayout()
+            rep_author_img_url = None
+            tweet, ts = act.content, act.created_at
+            author, author_img_url, urls, medias = act.profile_name, act.profile_url, act.urls, act.media_urls
+            tweet_text = wrap_text_href(tweet) + "\n...at " + convert_dt(ts) + "\n"
+            dbgp(("Got urls:", urls))
+            tweet_text += "\n".join(href_word(url, open_status_link) for url in urls)
+            dbgp("final text:{}".format(tweet_text))
+            tweet_author_label_img = QLabel()
+            img_urls.append((len(img_urls), author_img_url))
+            self.img_labels.append(tweet_author_label_img)
+            post_layout.addWidget(tweet_author_label_img)
+            # the tweet
+            tweet_layout = QVBoxLayout()
+            tweet_label = QLabel(tweet_text)
+            tweet_label.setTextFormat(Qt.RichText)
+            tweet_label.setScaledContents(True)
+            tweet_label.setWordWrap(True)
+            tweet_label.setOpenExternalLinks(True)
+            tweet_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+            tweet_layout.addWidget(tweet_label)
+            if medias:
+                for media in medias:
+                    media_type, media_url = media[0], media[1]
+                    if media_type == "video":
+                        # IN ORDER FOR THIS TO WORK
+                        # Download these filter in windows:
+                        # https://github.com/Nevcairiel/LAVFilters/releases
+                        media_video_url = media[-1]
+                        dbgp("video {}".format(media_video_url))
+                        tweet_layout.addWidget(MediaPlayer(media_video_url))
+                    else:
+                        media_attachement_label = ResizableLabelImg()
+                        media_attachement_label.setScaledContents(True)
+                        img_urls.append((len(img_urls), media_url))
+                        self.img_labels.append(media_attachement_label)
+                        tweet_layout.addWidget(media_attachement_label)
+            post_layout.addLayout(tweet_layout)
+            post_layout.addStretch(1)
+            # add to parent layout
+            self.layout.addLayout(post_layout, 1)
         self.main_widget.setLayout(self.layout)
-        # TODO: scroll on the left widget
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scroll_area.setWidgetResizable(True)
@@ -340,10 +323,10 @@ class MainWindow(QMainWindow):
             self.debug_browser_layout.addWidget(twitter_web_view)
             self.window_widget_layout.addLayout(self.debug_browser_layout)
 
-        self.window_widget_layout.addWidget(self.scroll_area)
-        self.window_widget.setLayout(self.window_widget_layout)
-        self.setCentralWidget(self.window_widget)
-        self.setWindowTitle(window_title)
+        self.layout.addWidget(self.scroll_area)
+        #self.window_widget_layout.addWidget(self.scroll_area)
+        #self.window_widget.setLayout(self.window_widget_layout)
+        #self.setCentralWidget(self.window_widget)
         # start background worker thread
         self.download_img_thread_pool = DownloadImgThreadPool(img_urls, self.update_img_label)
         self.download_img_thread_pool.start()
@@ -352,6 +335,28 @@ class MainWindow(QMainWindow):
         dbgp(("updating :", label_index, q_img))
         img_label = self.img_labels[label_index]
         img_label.setPixmap(QPixmap.fromImage(q_img))
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, app, dtos):
+        super(MainWindow, self).__init__()
+        self.app = app # pass app just in case need to do some events
+        self.twitter_ids = len(dtos.keys())
+        self.stack_widget = QStackedWidget()
+        for twitter_id in dtos:
+            profile_elem, activities = dtos[twitter_id]
+            self.stack_widget.addWidget(MainWidget(profile_elem, activities))
+            #self.stack_widget.addWidget(QLabel("A Widget"))
+        self.stack_widget.keyPressEvent = self.changePage
+        self.init_ui()
+
+    def init_ui(self):
+        self.setCentralWidget(self.stack_widget)
+        self.setWindowTitle(window_title)
+
+    def changePage(self, event):
+        if event.key == Qt.Key.Key_N:
+            self.stack_widget.setCurrentIndex((stack_widget.currentIndex() + 1) % self.twitter_ids)
 
 
 
