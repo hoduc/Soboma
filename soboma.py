@@ -234,39 +234,45 @@ class MainWidget(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        self.scroll_area = QScrollArea()
-        self.window_widget = QWidget()
         self.window_widget_layout = QHBoxLayout()
+        self.setLayout(self.window_widget_layout)
+        self.main_widget_layout = QVBoxLayout()
+        self.main_widget_layout.addStretch(1)
         self.main_widget = QWidget()
-        self.layout = QVBoxLayout()
-        self.layout.addStretch(1)
-        #self.setLayout(self.layout)
+        self.main_widget.setLayout(self.main_widget_layout)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameStyle(QFrame.NoFrame)
+        self.scroll_area.setWidget(self.main_widget)
+        self.window_widget_layout.addWidget(self.scroll_area)
         img_urls = []
-        # if self.profile_elem:
-        #     bg_widget = QWidget()
-        #     profile_url, profile_bg_url, profile_stats, bio, location = self.profile_elem
-        #     # TODO: These if and default values
-        #     location = "" if not location else location.strip() + "\n"
-        #     bio = "" if not bio else bio.strip() + "\n"
+        if self.profile_elem:
+            bg_widget = QWidget()
+            profile_url, profile_bg_url, profile_stats, bio, location = self.profile_elem
+            # TODO: These if and default values
+            location = "" if not location else location.strip() + "\n"
+            bio = "" if not bio else bio.strip() + "\n"
 
-        #     profile_mapping = ["Tweets", "Following", "Followers"]
-        #     profile_stats_text = ""
-        #     for (i, stat) in enumerate(profile_stats):
-        #         profile_stats_text += "{} {},".format(stat, profile_mapping[i])
-        #     if profile_stats_text:
-        #         profile_stats_text = profile_stats_text[:-1] + "\n"
-        #     profile_label = QLabel(bio + location + profile_stats_text)
-        #     profile_label.setWordWrap(True)
-        #     profile_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        #     profile_img_label = QLabel()
-        #     img_urls.append((0,profile_url))
-        #     self.img_labels.append(profile_img_label)
-        #     post_layout = QHBoxLayout()
-        #     post_layout.addWidget(profile_img_label)
-        #     post_layout.addWidget(profile_label)
-        #     post_layout.addStretch(1)
-        #     bg_widget.setLayout(post_layout)
-        #     self.layout.addWidget(bg_widget)
+            profile_mapping = ["Tweets", "Following", "Followers"]
+            profile_stats_text = ""
+            for (i, stat) in enumerate(profile_stats):
+                profile_stats_text += "{} {},".format(stat, profile_mapping[i])
+            if profile_stats_text:
+                profile_stats_text = profile_stats_text[:-1] + "\n"
+            profile_label = QLabel(bio + location + profile_stats_text)
+            profile_label.setWordWrap(True)
+            profile_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+            profile_img_label = QLabel()
+            img_urls.append((0,profile_url))
+            self.img_labels.append(profile_img_label)
+            post_layout = QHBoxLayout()
+            post_layout.addWidget(profile_img_label)
+            post_layout.addWidget(profile_label)
+            post_layout.addStretch(1)
+            bg_widget.setLayout(post_layout)
+            self.main_widget_layout.addWidget(bg_widget)
             # TODO: Refactor this. Getting unwiedly pretty fast
         for act in self.activities:
             post_layout = QHBoxLayout()
@@ -309,24 +315,13 @@ class MainWidget(QWidget):
             post_layout.addLayout(tweet_layout)
             post_layout.addStretch(1)
             # add to parent layout
-            self.layout.addLayout(post_layout, 1)
-        self.main_widget.setLayout(self.layout)
-        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFrameStyle(QFrame.NoFrame)
-        self.scroll_area.setWidget(self.main_widget)
+            self.main_widget_layout.addLayout(post_layout, 1)
         if debug_browser:
             twitter_web_view = QWebEngineView()
             twitter_web_view.load(QUrl(debug_browser_view_url.format(twitter_id)))
             self.debug_browser_layout = QVBoxLayout()
             self.debug_browser_layout.addWidget(twitter_web_view)
             self.window_widget_layout.addLayout(self.debug_browser_layout)
-
-        self.layout.addWidget(self.scroll_area)
-        #self.window_widget_layout.addWidget(self.scroll_area)
-        #self.window_widget.setLayout(self.window_widget_layout)
-        #self.setCentralWidget(self.window_widget)
         # start background worker thread
         self.download_img_thread_pool = DownloadImgThreadPool(img_urls, self.update_img_label)
         self.download_img_thread_pool.start()
@@ -342,21 +337,23 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
         self.app = app # pass app just in case need to do some events
         self.twitter_ids = len(dtos.keys())
+        dbgp("twitter_ids:{} => {}".format(dtos.keys(), self.twitter_ids))
         self.stack_widget = QStackedWidget()
         for twitter_id in dtos:
             profile_elem, activities = dtos[twitter_id]
             self.stack_widget.addWidget(MainWidget(profile_elem, activities))
-            #self.stack_widget.addWidget(QLabel("A Widget"))
         self.stack_widget.keyPressEvent = self.changePage
         self.init_ui()
 
     def init_ui(self):
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.stack_widget)
         self.setCentralWidget(self.stack_widget)
         self.setWindowTitle(window_title)
 
     def changePage(self, event):
-        if event.key == Qt.Key.Key_N:
-            self.stack_widget.setCurrentIndex((stack_widget.currentIndex() + 1) % self.twitter_ids)
+        if event.key() == Qt.Key.Key_N:
+            self.stack_widget.setCurrentIndex((self.stack_widget.currentIndex() + 1) % self.twitter_ids)
 
 
 
