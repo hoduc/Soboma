@@ -51,6 +51,7 @@ DEBUG_PRINT_KEY = "debug_print"
 DEBUG_HTML_KEY = "debug_html"
 DEBUG_PRINT_LEVEL_KEY = "debug_print_level"
 DEBUG_JSON_KEY = "debug_json"
+NEXT_PAGE_KEY = "next_page_key"
 
 class DebugPrintLevel(IntEnum):
     DEBUG = 1
@@ -81,6 +82,7 @@ search_url = config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
 twitter_ids = config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
 debug_browser_view_url = config[TWITTER_CONFIG_SECTION][DEBUG_BROWSER_VIEW_URL_KEY]
 debug_json = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_JSON_KEY)
+next_page_key = config[TWITTER_CONFIG_SECTION][NEXT_PAGE_KEY]
 
 def dbg_print(msg, debug_print_level, should_print = True):
     if should_print:
@@ -336,7 +338,7 @@ class MainWindow(QMainWindow):
     def __init__(self, app, dtos):
         super(MainWindow, self).__init__()
         self.app = app # pass app just in case need to do some events
-        self.twitter_ids = len(dtos.keys())
+        self.twitter_ids = list(dtos.keys())
         dbgp("twitter_ids:{} => {}".format(dtos.keys(), self.twitter_ids))
         self.stack_widget = QStackedWidget()
         for twitter_id in dtos:
@@ -352,8 +354,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(window_title)
 
     def changePage(self, event):
-        if event.key() == Qt.Key.Key_N:
-            self.stack_widget.setCurrentIndex((self.stack_widget.currentIndex() + 1) % self.twitter_ids)
+        if event.key() == ord(next_page_key):
+            next_index = (self.stack_widget.currentIndex() + 1) % len(self.twitter_ids)
+            dbgp("Changing to show the content of twitter_id :{}:".format(self.twitter_ids[next_index]))
+            self.stack_widget.setCurrentIndex((next_index))
 
 
 
