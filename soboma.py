@@ -79,7 +79,7 @@ number_of_tweets = config[TWITTER_CONFIG_SECTION][NUMBER_OF_TWEETS_KEY]
 status_link = config[TWITTER_CONFIG_SECTION][STATUS_LINK_KEY]
 open_status_link = config[TWITTER_CONFIG_SECTION][OPEN_STATUS_LINK_KEY]
 search_url = config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
-twitter_ids = config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")
+twitter_ids = [twitter_id.strip() for twitter_id in config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")]
 debug_browser_view_url = config[TWITTER_CONFIG_SECTION][DEBUG_BROWSER_VIEW_URL_KEY]
 debug_json = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_JSON_KEY)
 next_page_key = config[TWITTER_CONFIG_SECTION][NEXT_PAGE_KEY]
@@ -228,8 +228,9 @@ class MediaPlayer(QWidget):
 
 
 class MainWidget(QWidget):
-    def __init__(self, profile_elem, activities):
+    def __init__(self, twitter_id, profile_elem, activities):
         super(MainWidget, self).__init__()
+        self.twitter_id = twitter_id
         self.profile_elem = profile_elem
         self.activities = activities
         self.img_labels = []
@@ -319,10 +320,11 @@ class MainWidget(QWidget):
             # add to parent layout
             self.main_widget_layout.addLayout(post_layout, 1)
         if debug_browser:
-            twitter_web_view = QWebEngineView()
-            twitter_web_view.load(QUrl(debug_browser_view_url.format(twitter_id)))
+            self.twitter_web_view = QWebEngineView()
+            self.twitter_web_view.load(QUrl(debug_browser_view_url.format(self.twitter_id)))
+            dbgp("open browser for {} with title {}".format(self.twitter_id, self.twitter_web_view.title()))
             self.debug_browser_layout = QVBoxLayout()
-            self.debug_browser_layout.addWidget(twitter_web_view)
+            self.debug_browser_layout.addWidget(self.twitter_web_view)
             self.window_widget_layout.addLayout(self.debug_browser_layout)
         # start background worker thread
         self.download_img_thread_pool = DownloadImgThreadPool(img_urls, self.update_img_label)
@@ -333,7 +335,6 @@ class MainWidget(QWidget):
         img_label = self.img_labels[label_index]
         img_label.setPixmap(QPixmap.fromImage(q_img))
 
-
 class MainWindow(QMainWindow):
     def __init__(self, app, dtos):
         super(MainWindow, self).__init__()
@@ -343,7 +344,7 @@ class MainWindow(QMainWindow):
         self.stack_widget = QStackedWidget()
         for twitter_id in dtos:
             profile_elem, activities = dtos[twitter_id]
-            self.stack_widget.addWidget(MainWidget(profile_elem, activities))
+            self.stack_widget.addWidget(MainWidget(twitter_id, profile_elem, activities))
         self.stack_widget.keyPressEvent = self.changePage
         self.init_ui()
 
@@ -355,7 +356,7 @@ class MainWindow(QMainWindow):
 
     def changePage(self, event):
         if event.key() == ord(next_page_key):
-            next_index = (self.stack_widget.currentIndex() + 1) % len(self.twitter_ids)
+            next_index = (self.stack_widget.currentIndex() + 1) % self.stack_widget.count()
             dbgp("Changing to show the content of twitter_id :{}:".format(self.twitter_ids[next_index]))
             self.stack_widget.setCurrentIndex((next_index))
 
