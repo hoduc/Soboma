@@ -495,6 +495,12 @@ def get_tweets_api(twitter_id, dtos, api):
             profile_url = rt.user.profile_image_url
             medias = rt.media
             # TODO: medias on all these
+        elif tweet.quoted_status:
+            dbgp("Quote status")
+            qt = tweet.quoted_status
+            profile_name = tweet.user.screen_name
+            profile_url = qt.user.profile_image_url
+            medias = qt.media
         else:
             dbgp("Not Retweeting")
             profile_name = tweet.user.screen_name
@@ -520,6 +526,8 @@ def get_tweets_api(twitter_id, dtos, api):
             if not urls:
                 dbgp("Reconstructing urls:")
                 urls = [status_link.format(tweet.in_reply_to_screen_name, tweet.in_reply_to_status_id)]
+        elif tweet.quoted_status: # TODO: Refactor these
+            content += " (quoted @" + tweet.quoted_status.user.screen_name + ": \"" + tweet.quoted_status.text + "\")"
         content += " : " + tweet.text
         dbgp(("final_urls:", urls))
         # TODO: relation
