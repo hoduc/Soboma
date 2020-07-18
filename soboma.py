@@ -103,15 +103,15 @@ def dbgpw(msg):
 def dbgpe(msg):
     dbgp_helper(msg, DebugPrintLevel.ERROR)
 
-class RunnableSignal(QObject):
-    done = pyqtSignal(int, QImage)
-
 class DownloadImgRunnable(QRunnable):
+    class RunnableSignal(QObject):
+        done = pyqtSignal(int, QImage)
+
     def __init__(self, index, url, img_cache):
         super(DownloadImgRunnable, self).__init__()
         self.index, self.url = index, url
         self.img_cache = img_cache
-        self.runnable_signal = RunnableSignal()
+        self.runnable_signal = self.RunnableSignal()
 
     def run(self):
         dbgp(("about to run Runnable:", self.index, self.url))
