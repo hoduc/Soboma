@@ -1,0 +1,22 @@
+[common]
+window_title = Soboma
+debug = True
+debug_browser = False
+debug_print = True
+debug_print_level = INFO
+debug_html = False
+ui = True
+use_api = True
+[twitter]
+consumer_key = some_key
+consumer_secret = some_key
+access_token_key = some_key
+access_token_secret = some_key
+search_url = some_url
+twitter_ids = twitter_screen_name
+number_of_tweets = some_number
+status_link = status_link
+open_status_link = some_text
+debug_browser_view_url = browser_url
+debug_json = False
+next_page_key = N
