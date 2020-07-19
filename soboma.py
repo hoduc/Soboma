@@ -105,16 +105,16 @@ def dbgpe(msg):
 
 class DownloadImgRunnable(QRunnable):
     class RunnableSignal(QObject):
-        done = pyqtSignal(int, QImage)
+        done = pyqtSignal(QPixmap)
 
-    def __init__(self, index, url, img_cache):
+    def __init__(self, url, img_cache):
         super(DownloadImgRunnable, self).__init__()
-        self.index, self.url = index, url
+        self.url = url
         self.img_cache = img_cache
         self.runnable_signal = self.RunnableSignal()
 
     def run(self):
-        dbgp(("about to run Runnable:", self.index, self.url))
+        dbgp(("about to run Runnable:", self.url))
         q_img = None
         if self.url in self.img_cache:
             dbgp("{} in cache !!!".format(self.url))
@@ -126,33 +126,33 @@ class DownloadImgRunnable(QRunnable):
             # https://stackoverflow.com/questions/61354609/pyqt5-setpixmap-crashing-when-trying-to-show-image-in-label
             q_img = QImage(ImageQt(downloaded_img).copy())
             self.img_cache[self.url] = q_img
-            dbgp(("finished:", self.index, self.url, q_img))
-        self.runnable_signal.done.emit(self.index, q_img)
+            dbgp(("finished:", self.url))
+        self.runnable_signal.done.emit(QPixmap.fromImage(q_img))
 
 
 class DownloadImgThreadPool(QObject):
-    def __init__(self, meta_urls, ui_update_delegate):
+    def __init__(self):
         super(DownloadImgThreadPool, self).__init__()
         self.pool = QThreadPool.globalInstance()
-        self.meta_urls = meta_urls
+        self.download_img_runnables = []
         self.img_cache = {}
-        # TODO: Better way for passing these delegate and
-        # the dependencies of meta_url
-        # having index in it
-        self.ui_update_delegate = ui_update_delegate
 
     def start(self):
         start = timer()
         dbgp("starting threadpool")
-        for (index, url) in self.meta_urls:
-            download_img_thread = DownloadImgRunnable(index, url, self.img_cache)
-            # connect
-            download_img_thread.runnable_signal.done[int, QImage].connect(self.ui_update_delegate)
-            self.pool.start(download_img_thread)
+        for download_img_runnable in self.download_img_runnables:
+            self.pool.start(download_img_runnable)
         self.pool.waitForDone()
         end = timer()
+        self.download_img_runnables = []
         dbgpi("Thread pool taken {} seconds".format(str(end-start)))
         dbgp("Finished Threadpool")
+
+    def register_img_url(self, img_url, ui_update_delegate):
+        download_img_runnable = DownloadImgRunnable(img_url, self.img_cache)
+        download_img_runnable.runnable_signal.done[QPixmap].connect(ui_update_delegate)
+        self.download_img_runnables.append(download_img_runnable)
+
 
 def href_word(word, content = ""):
     if content == "":
@@ -234,6 +234,7 @@ class MainWidget(QWidget):
         self.profile_elem = profile_elem
         self.activities = activities
         self.img_labels = []
+        self.download_img_thread_pool = DownloadImgThreadPool()
         self.init_ui()
 
     def init_ui(self):
@@ -268,8 +269,8 @@ class MainWidget(QWidget):
             profile_label.setWordWrap(True)
             profile_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
             profile_img_label = QLabel()
-            img_urls.append((0,profile_url))
-            self.img_labels.append(profile_img_label)
+            self.download_img_thread_pool.register_img_url(profile_url, profile_img_label.setPixmap)
+
             post_layout = QHBoxLayout()
             post_layout.addWidget(profile_img_label)
             post_layout.addWidget(profile_label)
@@ -287,8 +288,7 @@ class MainWidget(QWidget):
             tweet_text += "\n".join(href_word(url, open_status_link) for url in urls)
             dbgp("final text:{}".format(tweet_text))
             tweet_author_label_img = QLabel()
-            img_urls.append((len(img_urls), author_img_url))
-            self.img_labels.append(tweet_author_label_img)
+            self.download_img_thread_pool.register_img_url(author_img_url, tweet_author_label_img.setPixmap)
             post_layout.addWidget(tweet_author_label_img)
             # the tweet
             tweet_layout = QVBoxLayout()
@@ -310,11 +310,10 @@ class MainWidget(QWidget):
                         dbgp("video {}".format(media_video_url))
                         tweet_layout.addWidget(MediaPlayer(media_video_url))
                     else:
-                        media_attachement_label = ResizableLabelImg()
-                        media_attachement_label.setScaledContents(True)
-                        img_urls.append((len(img_urls), media_url))
-                        self.img_labels.append(media_attachement_label)
-                        tweet_layout.addWidget(media_attachement_label)
+                        media_attachment_label = ResizableLabelImg()
+                        media_attachment_label.setScaledContents(True)
+                        self.download_img_thread_pool.register_img_url(media_url, media_attachment_label.setPixmap)
+                        tweet_layout.addWidget(media_attachment_label)
             post_layout.addLayout(tweet_layout)
             post_layout.addStretch(1)
             # add to parent layout
@@ -326,14 +325,7 @@ class MainWidget(QWidget):
             self.debug_browser_layout = QVBoxLayout()
             self.debug_browser_layout.addWidget(self.twitter_web_view)
             self.window_widget_layout.addLayout(self.debug_browser_layout)
-        # start background worker thread
-        self.download_img_thread_pool = DownloadImgThreadPool(img_urls, self.update_img_label)
         self.download_img_thread_pool.start()
-
-    def update_img_label(self, label_index, q_img):
-        dbgp(("updating :", label_index, q_img))
-        img_label = self.img_labels[label_index]
-        img_label.setPixmap(QPixmap.fromImage(q_img))
 
 class MainWindow(QMainWindow):
     def __init__(self, app, dtos):
