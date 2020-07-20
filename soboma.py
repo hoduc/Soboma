@@ -7,9 +7,8 @@ import twitter
 import json
 import dataclasses
 from pin import Pin
-from dateutil.parser import parse
-from dateutil import tz
-from datetime import datetime
+from util import DebugPrintLevel, current_debug_print_level, current_debug_print, dbgp, dbgpi, dbgpw, dbgpe
+from config import *
 from timeit import default_timer as timer
 from enum import IntEnum
 from operator import itemgetter
@@ -25,83 +24,8 @@ from PyQt5.QtCore import Qt, QRunnable, QObject, QThreadPool, QUrl, QSize, QPoin
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PIL import Image
 from PIL.ImageQt import ImageQt
+from ui import PinWidget
 
-
-UA = UserAgent()
-HEADER = {'User-Agent' : str(UA.chrome) }
-CONFIG_FILE_NAME = "config"
-COMMON_CONFIG_SECTION = "common"
-WINDOW_TITLE_KEY = "window_title"
-TWITTER_CONFIG_SECTION = "twitter"
-CONSUMER_KEY = "consumer_key"
-CONSUMER_SECRET = "consumer_secret"
-ACCESS_TOKEN_KEY = "access_token_key"
-ACCESS_TOKEN_SECRET = "access_token_secret"
-USE_API_KEY = "use_api"
-NUMBER_OF_TWEETS_KEY = "number_of_tweets"
-STATUS_LINK_KEY = "status_link"
-OPEN_STATUS_LINK_KEY = "open_status_link"
-SEARCH_URL_KEY = "search_url"
-TWITTER_IDS_KEY = "twitter_ids"
-UI_KEY = "ui"
-DEBUG_KEY = "debug"
-DEBUG_BROWSER_KEY = "debug_browser"
-DEBUG_BROWSER_VIEW_URL_KEY = "debug_browser_view_url"
-DEBUG_PRINT_KEY = "debug_print"
-DEBUG_HTML_KEY = "debug_html"
-DEBUG_PRINT_LEVEL_KEY = "debug_print_level"
-DEBUG_JSON_KEY = "debug_json"
-NEXT_PAGE_KEY = "next_page_key"
-
-class DebugPrintLevel(IntEnum):
-    DEBUG = 1
-    INFO = 2
-    WARN = 3
-    ERROR = 4
-
-
-config = configparser.ConfigParser()
-config.read(CONFIG_FILE_NAME)
-window_title = config[COMMON_CONFIG_SECTION][WINDOW_TITLE_KEY]
-debug = config[COMMON_CONFIG_SECTION].getboolean(DEBUG_KEY)
-debug_browser = config[COMMON_CONFIG_SECTION].getboolean(DEBUG_BROWSER_KEY)
-debug_print = config[COMMON_CONFIG_SECTION].getboolean(DEBUG_PRINT_KEY)
-debug_print_level = config[COMMON_CONFIG_SECTION][DEBUG_PRINT_LEVEL_KEY]
-debug_html = config[COMMON_CONFIG_SECTION].getboolean(DEBUG_HTML_KEY)
-ui = config[COMMON_CONFIG_SECTION].getboolean(UI_KEY)
-use_api = config[COMMON_CONFIG_SECTION].getboolean(USE_API_KEY)
-# TODO : Separate into different social config
-consumer_key = config[TWITTER_CONFIG_SECTION][CONSUMER_KEY]
-consumer_secret = config[TWITTER_CONFIG_SECTION][CONSUMER_SECRET]
-access_token_key = config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_KEY]
-access_token_secret = config[TWITTER_CONFIG_SECTION][ACCESS_TOKEN_SECRET]
-number_of_tweets = config[TWITTER_CONFIG_SECTION][NUMBER_OF_TWEETS_KEY]
-status_link = config[TWITTER_CONFIG_SECTION][STATUS_LINK_KEY]
-open_status_link = config[TWITTER_CONFIG_SECTION][OPEN_STATUS_LINK_KEY]
-search_url = config[TWITTER_CONFIG_SECTION][SEARCH_URL_KEY]
-twitter_ids = [twitter_id.strip() for twitter_id in config[TWITTER_CONFIG_SECTION][TWITTER_IDS_KEY].split(",")]
-debug_browser_view_url = config[TWITTER_CONFIG_SECTION][DEBUG_BROWSER_VIEW_URL_KEY]
-debug_json = config[TWITTER_CONFIG_SECTION].getboolean(DEBUG_JSON_KEY)
-next_page_key = config[TWITTER_CONFIG_SECTION][NEXT_PAGE_KEY]
-
-def dbg_print(msg, debug_print_level, should_print = True):
-    if should_print:
-        print("{} {}".format("[" + debug_print_level + "]", msg))
-
-def dbgp_helper(msg, debug_log_level):
-    dbg_print(msg, debug_log_level.name, debug_print and int(DebugPrintLevel[debug_print_level]) <= int(debug_log_level))
-
-def dbgp(msg):
-    dbgp_helper(msg, DebugPrintLevel.DEBUG)
-
-def dbgpi(msg):
-    dbgp_helper(msg, DebugPrintLevel.INFO)
-
-def dbgpw(msg):
-    dbgp_helper(msg, DebugPrintLevel.WARN)
-
-def dbgpe(msg):
-    dbgp_helper(msg, DebugPrintLevel.ERROR)
 
 class DownloadImgRunnable(QRunnable):
     class RunnableSignal(QObject):
@@ -154,79 +78,6 @@ class DownloadImgThreadPool(QObject):
         self.download_img_runnables.append(download_img_runnable)
 
 
-def href_word(word, content = ""):
-    if content == "":
-        content = word
-    return "<a href=\"{}\">{}</a>".format(word, content) if word and word.startswith("http") else word
-
-# find and replace all link into href
-def wrap_text_href(text):
-    s = ""
-    word = ""
-    i = 0
-    while i < len(text):
-        while i < len(text) and (text[i] == " " or text[i] == "\n"):
-            s += text[i]
-            i += 1
-        while i < len(text) and text[i] != " " and text[i] != "\n":
-            word += text[i]
-            i += 1
-        # either found word
-        s += href_word(word)
-        word = ""
-    s += href_word(word)
-    return s
-
-# to local time
-def convert_dt(date_str):
-    return datetime.strftime(parse(date_str).replace(tzinfo=tz.tzutc()).astimezone(tz=tz.tzlocal()),'%Y-%m-%d %H:%M:%S')
-
-
-# TODO: Code clean up
-class ResizableLabelImg(QLabel):
-    def __init__(self, pixmap = None, parent = None):
-        QLabel.__init__(self, parent)
-        self.pixmap = pixmap
-
-    def setPixmap(self, pixmap):
-        self.pixmap = pixmap
-        self.scaleLabelImg()
-
-    def heightForWidth(self, width):
-        return self.height() if not self.pixmap else self.pixmap.height()/self.pixmap.width()
-
-    def sizeHint(self):
-        return QSize(self.width(), self.heightForWidth(self.width()))
-
-    def scaleLabelImg(self):
-        if self.pixmap:
-            super().setPixmap(self.pixmap.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-
-    def resizeEvent(self, event):
-        self.scaleLabelImg()
-
-
-class MediaPlayer(QWidget):
-    def __init__(self, media_video_url, parent = None):
-        super(MediaPlayer, self).__init__(parent)
-        self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
-        self.video_widget = QVideoWidget()
-        self.media_player.setMedia(QMediaContent(QUrl(media_video_url)))
-        self.media_player.setVideoOutput(self.video_widget)
-        self.media_player.pause()
-        self.mouseReleaseEvent = self.on_media_state_changed
-        self.layout = QVBoxLayout()
-        self.layout.addWidget(QLabel("video/gif"))
-        self.layout.addWidget(self.video_widget)
-        self.setLayout(self.layout)
-
-    def on_media_state_changed(self, event):
-        if self.media_player.state() == QMediaPlayer.PausedState or self.media_player.state() == QMediaPlayer.StoppedState:
-            self.media_player.play()
-        else:
-            self.media_player.pause()
-
-
 class MainWidget(QWidget):
     def __init__(self, twitter_id, profile_elem, activities):
         super(MainWidget, self).__init__()
@@ -251,7 +102,6 @@ class MainWidget(QWidget):
         self.scroll_area.setFrameStyle(QFrame.NoFrame)
         self.scroll_area.setWidget(self.main_widget)
         self.window_widget_layout.addWidget(self.scroll_area)
-        img_urls = []
         if self.profile_elem:
             bg_widget = QWidget()
             profile_url, profile_bg_url, profile_stats, bio, location = self.profile_elem
@@ -279,45 +129,7 @@ class MainWidget(QWidget):
             self.main_widget_layout.addWidget(bg_widget)
             # TODO: Refactor this. Getting unwiedly pretty fast
         for act in self.activities:
-            post_layout = QHBoxLayout()
-            rep_author_img_url = None
-            tweet, ts = act.content, act.created_at
-            author, author_img_url, urls, medias = act.profile_name, act.profile_url, act.urls, act.media_urls
-            tweet_text = wrap_text_href(tweet) + "\n...at " + convert_dt(ts) + "\n"
-            dbgp(("Got urls:", urls))
-            tweet_text += "\n".join(href_word(url, open_status_link) for url in urls)
-            dbgp("final text:{}".format(tweet_text))
-            tweet_author_label_img = QLabel()
-            self.download_img_thread_pool.register_img_url(author_img_url, tweet_author_label_img.setPixmap)
-            post_layout.addWidget(tweet_author_label_img)
-            # the tweet
-            tweet_layout = QVBoxLayout()
-            tweet_label = QLabel(tweet_text)
-            tweet_label.setTextFormat(Qt.RichText)
-            tweet_label.setScaledContents(True)
-            tweet_label.setWordWrap(True)
-            tweet_label.setOpenExternalLinks(True)
-            tweet_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-            tweet_layout.addWidget(tweet_label)
-            if medias:
-                for media in medias:
-                    media_type, media_url = media[0], media[1]
-                    if media_type == "video":
-                        # IN ORDER FOR THIS TO WORK
-                        # Download these filter in windows:
-                        # https://github.com/Nevcairiel/LAVFilters/releases
-                        media_video_url = media[-1]
-                        dbgp("video {}".format(media_video_url))
-                        tweet_layout.addWidget(MediaPlayer(media_video_url))
-                    else:
-                        media_attachment_label = ResizableLabelImg()
-                        media_attachment_label.setScaledContents(True)
-                        self.download_img_thread_pool.register_img_url(media_url, media_attachment_label.setPixmap)
-                        tweet_layout.addWidget(media_attachment_label)
-            post_layout.addLayout(tweet_layout)
-            post_layout.addStretch(1)
-            # add to parent layout
-            self.main_widget_layout.addLayout(post_layout, 1)
+            self.main_widget_layout.addWidget(PinWidget(act,self.download_img_thread_pool))
         if debug_browser:
             self.twitter_web_view = QWebEngineView()
             self.twitter_web_view.load(QUrl(debug_browser_view_url.format(self.twitter_id)))
