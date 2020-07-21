@@ -94,7 +94,9 @@ class PinWidget(QWidget):
         rep_author_img_url = None
         tweet, ts = self.pin.content, self.pin.created_at
         author, author_img_url, urls, medias = self.pin.profile_name, self.pin.profile_url, self.pin.urls, self.pin.media_urls
-        tweet_text = wrap_text_href(tweet) + "\n...at " + convert_dt(ts) + "\n"
+        tweet_text = wrap_text_href(tweet)
+        if ts:
+            tweet_text += "\n...at " + convert_dt(ts) + "\n"
         dbgp(("Got urls:", urls))
         tweet_text += "\n".join(href_word(url, open_status_link) for url in urls)
         dbgp("final text:{}".format(tweet_text))

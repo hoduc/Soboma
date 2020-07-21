@@ -79,10 +79,9 @@ class DownloadImgThreadPool(QObject):
 
 
 class MainWidget(QWidget):
-    def __init__(self, twitter_id, profile_elem, activities):
+    def __init__(self, twitter_id, activities):
         super(MainWidget, self).__init__()
         self.twitter_id = twitter_id
-        self.profile_elem = profile_elem
         self.activities = activities
         self.img_labels = []
         self.download_img_thread_pool = DownloadImgThreadPool()
@@ -102,32 +101,6 @@ class MainWidget(QWidget):
         self.scroll_area.setFrameStyle(QFrame.NoFrame)
         self.scroll_area.setWidget(self.main_widget)
         self.window_widget_layout.addWidget(self.scroll_area)
-        if self.profile_elem:
-            bg_widget = QWidget()
-            profile_url, profile_bg_url, profile_stats, bio, location = self.profile_elem
-            # TODO: These if and default values
-            location = "" if not location else location.strip() + "\n"
-            bio = "" if not bio else bio.strip() + "\n"
-
-            profile_mapping = ["Tweets", "Following", "Followers"]
-            profile_stats_text = ""
-            for (i, stat) in enumerate(profile_stats):
-                profile_stats_text += "{} {},".format(stat, profile_mapping[i])
-            if profile_stats_text:
-                profile_stats_text = profile_stats_text[:-1] + "\n"
-            profile_label = QLabel(bio + location + profile_stats_text)
-            profile_label.setWordWrap(True)
-            profile_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
-            profile_img_label = QLabel()
-            self.download_img_thread_pool.register_img_url(profile_url, profile_img_label.setPixmap)
-
-            post_layout = QHBoxLayout()
-            post_layout.addWidget(profile_img_label)
-            post_layout.addWidget(profile_label)
-            post_layout.addStretch(1)
-            bg_widget.setLayout(post_layout)
-            self.main_widget_layout.addWidget(bg_widget)
-            # TODO: Refactor this. Getting unwiedly pretty fast
         for act in self.activities:
             self.main_widget_layout.addWidget(PinWidget(act,self.download_img_thread_pool))
         if debug_browser:
@@ -148,7 +121,7 @@ class MainWindow(QMainWindow):
         self.stack_widget = QStackedWidget()
         for twitter_id in dtos:
             profile_elem, activities = dtos[twitter_id]
-            self.stack_widget.addWidget(MainWidget(twitter_id, profile_elem, activities))
+            self.stack_widget.addWidget(MainWidget(twitter_id, activities))
         self.stack_widget.keyPressEvent = self.changePage
         self.init_ui()
 
@@ -262,21 +235,40 @@ def get_tweets(twitter_id, dtos):
         page += 1
     return dtos
 
+def default_str_new_line(s):
+    return "" if not s else s.strip() + "\n"
+
+def profile(user):
+    dbgp(user)
+    profile_img = user.profile_image_url
+    profile_bg_img = user.profile_banner_url
+    profile_bio = default_str_new_line(user.description)
+    profile_location = default_str_new_line(user.location)
+    profile_stats = [user.statuses_count, user.friends_count, user.followers_count]
+    profile_mapping = ["Tweets", "Following", "Followers"]
+    profile_stats_text = ""
+    for (i, stat) in enumerate(profile_stats):
+        profile_stats_text += "{} {},".format(stat, profile_mapping[i])
+    if profile_stats_text:
+        profile_stats_text = profile_stats_text[:-1] + "\n"
+    profile_elem = (profile_img, profile_bg_img, profile_stats, profile_bio, profile_location)
+    content = profile_bio + profile_location + profile_stats_text
+    return profile_elem, Pin(profile_url = profile_img, content = content)
+
+
 def get_tweets_api(twitter_id, dtos, api):
     dbgpi("Getting tweets for {}".format(twitter_id))
     # get profile contents
     profile_elem = None
     user = api.GetUser(screen_name=twitter_id)
-    # TODO: Should consider this as part of activities?
-    profile_img = user.profile_image_url
-    profile_bg_img = user.profile_banner_url
-    profile_bio = user.description
-    profile_location = user.location
-    profile_stats = [user.statuses_count, user.friends_count, user.followers_count]
-    profile_elem = (profile_img, profile_bg_img, profile_stats, profile_bio, profile_location)
-    dbgp(user)
+    profile_elem, profile_pin = profile(user)
+    profile_img, profile_bg_img, profile_stats, profile_bio, profile_location = profile_elem
     # activities
-    acts = []
+    # TODO: indicates profile in activities
+    # Or always has profile at 0th index
+    # and other activities for e.g next page
+    # starting at 1th index
+    acts = [profile_pin]
     # TODO : Get all tweets for days
     timeline = api.GetUserTimeline(screen_name=twitter_id, count=number_of_tweets)
     tweets = []
