@@ -5,7 +5,7 @@ fake-useragent==0.1.11
 future==0.18.2
 idna==2.9
 oauthlib==3.1.0
-Pillow==7.1.2
+Pillow==8.2.0
 PyQt5==5.15.0
 PyQt5-sip==12.8.0
 PyQtWebEngine==5.15.0
